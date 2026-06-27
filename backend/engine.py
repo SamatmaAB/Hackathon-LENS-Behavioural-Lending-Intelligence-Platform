@@ -12,10 +12,11 @@ shortcuts — every signal below is computed from the generated transactions).
   TRUST  -> risk-adjusted lead ranking (Tier 1/2/3)
 """
 
-import sqlite3
 import statistics
 from collections import defaultdict
 from datetime import datetime, timedelta
+
+from backend import db
 
 # ---------------------------------------------------------------------------
 # PULSE: the 14 behavioural triggers, with their weight in the Intent Score.
@@ -268,17 +269,15 @@ LEAD_THRESHOLD = 45  # Intent Score required to enter the lead pipeline (calibra
                       # so conversion lands near the prototype's benchmarked ~31%)
 
 
-def run_engine(db_path):
+def run_engine(db_path=None):
     """Runs PULSE -> CLARITY -> MATCH -> MOMENT -> TRUST for every customer
     and (re)writes the leads table. Returns summary counters."""
     import random as _r
 
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
+    conn = db.connect(db_path)
 
-    customers = [dict(r) for r in cur.execute("SELECT * FROM customers")]
-    cur.execute("DELETE FROM leads")
+    customers = db.rows(conn, "SELECT * FROM customers")
+    db.execute(conn, "DELETE FROM leads")
 
     n_leads = 0
     n_correct_match = 0
@@ -286,9 +285,7 @@ def run_engine(db_path):
     hours_list = []
 
     for cust in customers:
-        txns = [dict(r) for r in cur.execute(
-            "SELECT * FROM transactions WHERE customer_id=? ORDER BY timestamp", (cust["customer_id"],)
-        )]
+        txns = db.rows(conn, "SELECT * FROM transactions WHERE customer_id=? ORDER BY timestamp", (cust["customer_id"],))
         if not txns:
             continue
 
@@ -313,7 +310,8 @@ def run_engine(db_path):
         signal_at = latest_txn_time
         card_at = signal_at + timedelta(hours=hours_to_lead)
 
-        cur.execute(
+        db.execute(
+            conn,
             """INSERT INTO leads (customer_id, intent_score, triggers_fired,
                synthetic_income, income_accuracy_pct, predicted_loan_type, match_correct,
                trust_score, tier, outreach_channel, outreach_window_start, outreach_window_end,

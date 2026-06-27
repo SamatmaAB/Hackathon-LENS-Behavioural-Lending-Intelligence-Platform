@@ -254,12 +254,22 @@ body{
 <script type="text/babel" data-presets="react">
 const {useState, useEffect, useMemo, useCallback} = React;
 
+<<<<<<< Updated upstream
 const API_BASE = (() => {
   // Allow overriding via ?api=http://host:port for deployments where the
   // backend isn't on localhost:8000.
   const params = new URLSearchParams(window.location.search);
   return params.get('api') || 'http://localhost:8000';
 })();
+=======
+const API_BASE = new URLSearchParams(window.location.search).get('api') || window.location.origin;
+const storageKey = 'lens_auth';
+const emptyCustomer = {
+  customer_id:'', name:'', age:32, city:'', state:'', employment_type:'Salaried',
+  declared_income:'', true_monthly_income:'', true_loan_type:'None', persona:'manual'
+};
+const emptyTxn = {customer_id:'', type:'SALARY_CREDIT', amount:'', counterparty:'Employer Payroll', timestamp:''};
+>>>>>>> Stashed changes
 
 const TIER_COLORS = {'Tier 1': 'var(--tier1)', 'Tier 2': 'var(--tier2)', 'Tier 3': 'var(--tier3)'};
 

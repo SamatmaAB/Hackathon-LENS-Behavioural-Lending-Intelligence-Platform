@@ -13,6 +13,8 @@ import random
 import sqlite3
 from datetime import datetime, timedelta
 
+from backend import db
+
 FIRST_NAMES = [
     "Aarav", "Vivaan", "Aditya", "Vihaan", "Arjun", "Sai", "Reyansh", "Ayaan",
     "Krishna", "Ishaan", "Ananya", "Diya", "Saanvi", "Aadhya", "Kavya", "Myra",
@@ -323,6 +325,78 @@ CREATE TABLE IF NOT EXISTS leads (
     FOREIGN KEY(customer_id) REFERENCES customers(customer_id)
 );
 """
+
+POSTGRES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS customers (
+    customer_id TEXT PRIMARY KEY,
+    name TEXT, age INTEGER, city TEXT, state TEXT,
+    employment_type TEXT, declared_income DOUBLE PRECISION,
+    true_monthly_income DOUBLE PRECISION, true_loan_type TEXT, persona TEXT
+);
+CREATE TABLE IF NOT EXISTS transactions (
+    txn_id SERIAL PRIMARY KEY,
+    customer_id TEXT, timestamp TEXT, type TEXT,
+    amount DOUBLE PRECISION, counterparty TEXT,
+    FOREIGN KEY(customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS leads (
+    customer_id TEXT PRIMARY KEY,
+    intent_score DOUBLE PRECISION, triggers_fired TEXT,
+    synthetic_income DOUBLE PRECISION, income_accuracy_pct DOUBLE PRECISION,
+    predicted_loan_type TEXT, match_correct INTEGER,
+    trust_score DOUBLE PRECISION, tier TEXT,
+    outreach_channel TEXT, outreach_window_start TEXT, outreach_window_end TEXT,
+    signal_detected_at TEXT, lead_card_generated_at TEXT, hours_to_lead DOUBLE PRECISION,
+    FOREIGN KEY(customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
+);
+"""
+
+
+def create_schema(conn):
+    db.executescript(conn, POSTGRES_SCHEMA if db.IS_POSTGRES else SCHEMA)
+
+
+def clear_customer_data(conn):
+    if db.IS_POSTGRES:
+        db.executescript(conn, "DELETE FROM leads; DELETE FROM transactions; DELETE FROM customers;")
+    else:
+        conn.executescript("DELETE FROM leads; DELETE FROM transactions; DELETE FROM customers;")
+
+
+def insert_dataset(conn, customers, transactions):
+    db.executemany(
+        conn,
+        """INSERT INTO customers (customer_id, name, age, city, state, employment_type,
+           declared_income, true_monthly_income, true_loan_type, persona)
+           VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        [
+            (
+                c["customer_id"], c["name"], c["age"], c["city"], c["state"], c["employment_type"],
+                c["declared_income"], c["true_monthly_income"], c["true_loan_type"], c["persona"],
+            )
+            for c in customers
+        ],
+    )
+    db.executemany(
+        conn,
+        """INSERT INTO transactions (customer_id, timestamp, type, amount, counterparty)
+           VALUES (?,?,?,?,?)""",
+        [
+            (t["customer_id"], t["timestamp"], t["type"], t["amount"], t["counterparty"])
+            for t in transactions
+        ],
+    )
+
+
+def build_current_database(n_customers=150, seed=42):
+    conn = db.connect()
+    create_schema(conn)
+    clear_customer_data(conn)
+    customers, transactions = generate_dataset(n_customers, seed=seed)
+    insert_dataset(conn, customers, transactions)
+    conn.commit()
+    conn.close()
+    return len(customers), len(transactions)
 
 
 def build_database(db_path, n_customers=150, seed=42):

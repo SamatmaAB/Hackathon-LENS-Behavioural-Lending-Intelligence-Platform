@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LENS - Behavioural Lending Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<style>
+:root{
+  --bg:#071014;
+  --panel:#101922;
+  --panel-2:#16232E;
+  --panel-3:#1E2D38;
+  --line:#263845;
+  --soft:#1B2A34;
+  --text:#EEF5F2;
+  --muted:#9FB0AA;
+  --low:#667A77;
+  --green:#36C58A;
+  --cyan:#3CB6D4;
+  --gold:#E9A93B;
+  --red:#E05C5C;
+  --font:'Inter',system-ui,sans-serif;
+  --mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:var(--font)}
+body{background-image:linear-gradient(135deg,rgba(54,197,138,.08),transparent 35%),linear-gradient(315deg,rgba(233,169,59,.06),transparent 38%)}
+button,input,select{font:inherit}
+#root{min-height:100vh}
+.shell{min-height:100vh;display:grid;grid-template-columns:260px 1fr}
+.sidebar{border-right:1px solid var(--soft);background:rgba(16,25,34,.92);padding:22px;display:flex;flex-direction:column;gap:18px}
+.brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:20px}
+.brand-mark{width:38px;height:38px;border-radius:8px;background:var(--green);color:#062016;display:grid;place-items:center;font-weight:900}
+.role-card{border:1px solid var(--line);background:var(--panel-2);border-radius:8px;padding:14px}
+.role-card .name{font-weight:700}
+.role-card .meta{color:var(--muted);font-size:12px;margin-top:4px;word-break:break-word}
+.nav{display:flex;flex-direction:column;gap:8px}
+.nav button,.ghost-btn{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;padding:10px 12px;text-align:left;cursor:pointer}
+.nav button.active{background:rgba(54,197,138,.12);border-color:rgba(54,197,138,.55);color:var(--text)}
+.ghost-btn:hover,.nav button:hover{border-color:var(--green);color:var(--text)}
+.sidebar-bottom{margin-top:auto;color:var(--low);font-size:12px;line-height:1.5}
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{border-bottom:1px solid var(--soft);padding:22px 28px;display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+h1{margin:0;font-size:22px}
+.sub{color:var(--muted);font-size:13px;margin-top:5px}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--panel-2);color:var(--text);border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer}
+.btn.primary{background:var(--green);border-color:var(--green);color:#062016}
+.btn.warn{background:rgba(233,169,59,.13);border-color:rgba(233,169,59,.5);color:#F2D292}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.content{padding:22px 28px 36px;overflow:auto}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:18px}
+.stat{background:var(--panel);border:1px solid var(--soft);border-radius:8px;padding:14px}
+.stat .label{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--low);font-weight:800}
+.stat .value{font-size:26px;font-weight:800;margin-top:7px}
+.work-grid{display:grid;grid-template-columns:minmax(320px,420px) minmax(0,1fr);gap:18px}
+.panel{background:var(--panel);border:1px solid var(--soft);border-radius:8px;overflow:hidden}
+.panel-head{padding:15px 16px;border-bottom:1px solid var(--soft);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.panel-head h2{margin:0;font-size:15px}
+.panel-body{padding:16px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field.full{grid-column:1/-1}
+label{font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.5px}
+input,select{width:100%;border:1px solid var(--line);background:var(--panel-2);color:var(--text);border-radius:8px;padding:10px 11px;outline:none}
+input:focus,select:focus{border-color:var(--green)}
+.hint{font-size:12px;color:var(--low);line-height:1.5}
+.list{display:flex;flex-direction:column;gap:8px;max-height:520px;overflow:auto}
+.item{border:1px solid var(--soft);background:var(--panel-2);border-radius:8px;padding:12px;cursor:pointer}
+.item:hover,.item.selected{border-color:var(--green)}
+.item-top{display:flex;justify-content:space-between;gap:10px}
+.item-title{font-weight:800}
+.item-meta{font-size:12px;color:var(--muted);margin-top:4px}
+.pill{font-family:var(--mono);font-size:11px;border:1px solid var(--line);background:var(--panel-3);border-radius:999px;padding:4px 8px;color:var(--muted);white-space:nowrap}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs button{border:1px solid var(--line);background:var(--panel-2);color:var(--muted);border-radius:8px;padding:8px 10px;font-weight:700;cursor:pointer}
+.tabs button.active{background:rgba(60,182,212,.12);border-color:rgba(60,182,212,.55);color:var(--text)}
+.lead-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.lead-card{background:var(--panel-2);border:1px solid var(--soft);border-radius:8px;padding:14px}
+.lead-score{font-size:28px;font-weight:800;color:var(--green)}
+.lead-line{height:6px;background:var(--panel-3);border-radius:999px;overflow:hidden;margin:10px 0}
+.lead-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--cyan))}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px;border-bottom:1px solid var(--soft);text-align:left;font-size:13px}
+th{color:var(--low);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.amount{text-align:right;font-family:var(--mono)}
+.empty{border:1px dashed var(--line);border-radius:8px;padding:22px;color:var(--muted);line-height:1.5;background:rgba(16,25,34,.52)}
+.auth-wrap{min-height:100vh;display:grid;place-items:center;padding:24px}
+.auth-card{width:min(920px,100%);display:grid;grid-template-columns:1fr 380px;border:1px solid var(--soft);background:var(--panel);border-radius:8px;overflow:hidden}
+.auth-copy{padding:34px;background:linear-gradient(135deg,rgba(54,197,138,.12),rgba(60,182,212,.06))}
+.auth-copy h1{font-size:34px;max-width:460px}
+.auth-copy p{color:var(--muted);line-height:1.6;max-width:560px}
+.auth-form{padding:28px}
+.switch{display:flex;gap:8px;margin-bottom:16px}
+.switch button{flex:1;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);border-radius:8px;padding:10px;font-weight:800;cursor:pointer}
+.switch button.active{background:var(--green);border-color:var(--green);color:#062016}
+.error{border:1px solid rgba(224,92,92,.45);background:rgba(224,92,92,.09);color:#F0B0B0;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+.ok{border:1px solid rgba(54,197,138,.45);background:rgba(54,197,138,.09);color:#B7F0D3;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+@media(max-width:960px){
+  .shell{grid-template-columns:1fr}
+  .sidebar{position:static}
+  .work-grid,.auth-card{grid-template-columns:1fr}
+  .grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:620px){
+  .form-grid,.grid{grid-template-columns:1fr}
+  .topbar{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const {useCallback, useEffect, useMemo, useState} = React;
+
+const API_BASE = new URLSearchParams(window.location.search).get('api') || window.location.origin;
+const storageKey = 'lens_auth';
+const emptyCustomer = {
+  customer_id:'', name:'', age:32, city:'', state:'', employment_type:'Salaried',
+  declared_income:'', true_monthly_income:'', true_loan_type:'None', persona:'manual'
+};
+const emptyTxn = {customer_id:'', type:'SALARY_CREDIT', amount:'', counterparty:'Employer Payroll', timestamp:''};
+
+function money(n){ return n === null || n === undefined || n === '' ? '-' : 'Rs ' + Number(n).toLocaleString('en-IN', {maximumFractionDigits:0}); }
+function canWrite(user){ return user && ['admin','relationship_manager'].includes(user.role); }
+function roleLabel(role){ return ({admin:'Admin', relationship_manager:'Relationship Manager', analyst:'Analyst'})[role] || role; }
+
+function useApi(auth, onAuthError){
+  return useCallback(async (path, options={}) => {
+    const headers = {'Content-Type':'application/json', ...(options.headers || {})};
+    if (auth?.token) headers.Authorization = `Bearer ${auth.token}`;
+    const res = await fetch(`${API_BASE}${path}`, {...options, headers});
+    if (res.status === 401) onAuthError?.();
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
+    if (!res.ok) throw new Error(data.detail || 'Request failed');
+    return data;
+  }, [auth, onAuthError]);
+}
+
+function AuthScreen({onAuth}){
+  const [mode,setMode] = useState('login');
+  const [form,setForm] = useState({name:'',email:'',password:'',role:'relationship_manager'});
+  const [error,setError] = useState('');
+  const [busy,setBusy] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault(); setError(''); setBusy(true);
+    try {
+      const path = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
+      const body = mode === 'login' ? {email:form.email,password:form.password} : form;
+      const res = await fetch(`${API_BASE}${path}`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Authentication failed');
+      localStorage.setItem(storageKey, JSON.stringify(data));
+      onAuth(data);
+    } catch (err) {
+      setError(err.message);
+    } finally { setBusy(false); }
+  };
+  return (
+    <div className="auth-wrap">
+      <div className="auth-card">
+        <div className="auth-copy">
+          <div className="brand"><div className="brand-mark">L</div>LENS</div>
+          <h1>Behavioural lending starts with your own users and data.</h1>
+          <p>The database now starts empty. Register the first account to create the admin, then add customers and transactions manually or generate a demo dataset from the admin role.</p>
+          <div className="empty">Roles: Admin can manage demo generation, Relationship Manager can enter and scan data, Analyst can view dashboards and leads.</div>
+        </div>
+        <form className="auth-form" onSubmit={submit}>
+          <div className="switch">
+            <button type="button" className={mode==='login'?'active':''} onClick={()=>setMode('login')}>Login</button>
+            <button type="button" className={mode==='register'?'active':''} onClick={()=>setMode('register')}>Register</button>
+          </div>
+          {error && <div className="error">{error}</div>}
+          <div className="form-grid">
+            {mode === 'register' && <div className="field full"><label>Name</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} required /></div>}
+            <div className="field full"><label>Email</label><input type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} required /></div>
+            <div className="field full"><label>Password</label><input type="password" minLength="8" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} required /></div>
+            {mode === 'register' && (
+              <div className="field full">
+                <label>Requested Role</label>
+                <select value={form.role} onChange={e=>setForm({...form,role:e.target.value})}>
+                  <option value="relationship_manager">Relationship Manager</option>
+                  <option value="analyst">Analyst</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <div className="hint">The first registered user is always promoted to Admin.</div>
+              </div>
+            )}
+            <button className="btn primary" disabled={busy} style={{gridColumn:'1/-1'}}>{busy ? 'Please wait...' : mode === 'login' ? 'Login' : 'Create account'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function CustomerForm({api, user, onSaved}){
+  const [form,setForm] = useState(emptyCustomer);
+  const [msg,setMsg] = useState('');
+  const [err,setErr] = useState('');
+  const submit = async (e) => {
+    e.preventDefault(); setMsg(''); setErr('');
+    const body = {
+      ...form,
+      age:Number(form.age),
+      declared_income:form.declared_income === '' ? null : Number(form.declared_income),
+      true_monthly_income:form.true_monthly_income === '' ? null : Number(form.true_monthly_income)
+    };
+    try {
+      await api('/api/customers', {method:'POST', body:JSON.stringify(body)});
+      setMsg('Customer saved. Add transactions next, then run scan.');
+      setForm(emptyCustomer);
+      onSaved(body.customer_id);
+    } catch (e) { setErr(e.message); }
+  };
+  return (
+    <div className="panel">
+      <div className="panel-head"><h2>Register Customer</h2><span className="pill">{roleLabel(user.role)}</span></div>
+      <div className="panel-body">
+        {!canWrite(user) && <div className="empty">Your role is read-only. Ask an admin or relationship manager to add data.</div>}
+        {msg && <div className="ok">{msg}</div>}{err && <div className="error">{err}</div>}
+        <form className="form-grid" onSubmit={submit}>
+          <div className="field"><label>Customer ID</label><input value={form.customer_id} onChange={e=>setForm({...form,customer_id:e.target.value})} required disabled={!canWrite(user)} /></div>
+          <div className="field"><label>Name</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} required disabled={!canWrite(user)} /></div>
+          <div className="field"><label>Age</label><input type="number" min="18" max="100" value={form.age} onChange={e=>setForm({...form,age:e.target.value})} required disabled={!canWrite(user)} /></div>
+          <div className="field"><label>Employment</label><select value={form.employment_type} onChange={e=>setForm({...form,employment_type:e.target.value})} disabled={!canWrite(user)}><option>Salaried</option><option>Self-Employed</option><option>Gig Worker</option><option>Freelancer</option></select></div>
+          <div className="field"><label>City</label><input value={form.city} onChange={e=>setForm({...form,city:e.target.value})} required disabled={!canWrite(user)} /></div>
+          <div className="field"><label>State</label><input value={form.state} onChange={e=>setForm({...form,state:e.target.value})} required disabled={!canWrite(user)} /></div>
+          <div className="field"><label>Declared Income</label><input type="number" min="0" value={form.declared_income} onChange={e=>setForm({...form,declared_income:e.target.value})} disabled={!canWrite(user)} /></div>
+          <div className="field"><label>Observed Income</label><input type="number" min="0" value={form.true_monthly_income} onChange={e=>setForm({...form,true_monthly_income:e.target.value})} disabled={!canWrite(user)} /></div>
+          <div className="field full"><label>Known Loan Intent</label><select value={form.true_loan_type} onChange={e=>setForm({...form,true_loan_type:e.target.value})} disabled={!canWrite(user)}><option>None</option><option>Personal Loan</option><option>Auto Loan</option><option>Home Loan</option><option>Mortgage</option></select></div>
+          <button className="btn primary" disabled={!canWrite(user)} style={{gridColumn:'1/-1'}}>Save customer</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function TransactionForm({api, user, selectedCustomer, onSaved}){
+  const [form,setForm] = useState({...emptyTxn, customer_id:selectedCustomer || ''});
+  const [err,setErr] = useState('');
+  useEffect(()=>setForm(f=>({...f, customer_id:selectedCustomer || f.customer_id})), [selectedCustomer]);
+  const submit = async (e) => {
+    e.preventDefault(); setErr('');
+    const body = {...form, amount:Number(form.amount), timestamp:form.timestamp || null};
+    try {
+      await api('/api/transactions', {method:'POST', body:JSON.stringify(body)});
+      setForm({...emptyTxn, customer_id:form.customer_id});
+      onSaved();
+    } catch (e) { setErr(e.message); }
+  };
+  return (
+    <div className="panel" style={{marginTop:18}}>
+      <div className="panel-head"><h2>Add Transaction</h2><span className="pill">manual value</span></div>
+      <div className="panel-body">
+        {err && <div className="error">{err}</div>}
+        <form className="form-grid" onSubmit={submit}>
+          <div className="field full"><label>Customer ID</label><input value={form.customer_id} onChange={e=>setForm({...form,customer_id:e.target.value})} required disabled={!canWrite(user)} /></div>
+          <div className="field"><label>Type</label><select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} disabled={!canWrite(user)}><option>UPI_CREDIT</option><option>SALARY_CREDIT</option><option>UPI_DEBIT</option><option>IMPS</option><option>NEFT</option><option>EMI_DEBIT</option><option>BILL_PAY</option><option>WALLET_TOPUP</option></select></div>
+          <div className="field"><label>Amount</label><input type="number" min="1" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} required disabled={!canWrite(user)} /></div>
+          <div className="field full"><label>Counterparty</label><input value={form.counterparty} onChange={e=>setForm({...form,counterparty:e.target.value})} required disabled={!canWrite(user)} /></div>
+          <div className="field full"><label>Timestamp</label><input type="datetime-local" value={form.timestamp} onChange={e=>setForm({...form,timestamp:e.target.value})} disabled={!canWrite(user)} /><div className="hint">Leave blank to use the current time.</div></div>
+          <button className="btn primary" disabled={!canWrite(user)} style={{gridColumn:'1/-1'}}>Save transaction</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function DataView({api, user, refreshFlag, onPick, selected}){
+  const [customers,setCustomers] = useState([]);
+  const [transactions,setTransactions] = useState([]);
+  useEffect(()=>{ api('/api/customers?limit=200').then(setCustomers).catch(()=>setCustomers([])); }, [api, refreshFlag]);
+  useEffect(()=>{
+    if (!selected) { setTransactions([]); return; }
+    api(`/api/customers/${selected}/transactions`).then(setTransactions).catch(()=>setTransactions([]));
+  }, [api, selected, refreshFlag]);
+  return (
+    <div className="panel">
+      <div className="panel-head"><h2>Customer Data</h2><span className="pill">{customers.length} customers</span></div>
+      <div className="panel-body">
+        {customers.length === 0 ? <div className="empty">The database has no customers yet. Add one from the form, then provide transactions and run a scan.</div> :
+          <div className="list">
+            {customers.map(c => <div key={c.customer_id} className={`item ${selected===c.customer_id?'selected':''}`} onClick={()=>onPick(c.customer_id)}>
+              <div className="item-top"><div className="item-title">{c.name}</div><span className="pill">{c.customer_id}</span></div>
+              <div className="item-meta">{c.age} yrs - {c.employment_type} - {c.city}, {c.state} - income {money(c.true_monthly_income)}</div>
+            </div>)}
+          </div>
+        }
+        {selected && <>
+          <div className="panel-head" style={{paddingLeft:0,paddingRight:0,marginTop:18}}><h2>Transactions</h2><span className="pill">{transactions.length}</span></div>
+          {transactions.length === 0 ? <div className="empty">No transactions for this customer yet.</div> :
+            <table><thead><tr><th>Date</th><th>Type</th><th>Counterparty</th><th className="amount">Amount</th></tr></thead><tbody>{transactions.slice(0,20).map(t=><tr key={t.txn_id}><td>{new Date(t.timestamp).toLocaleString()}</td><td>{t.type}</td><td>{t.counterparty}</td><td className="amount">{money(t.amount)}</td></tr>)}</tbody></table>
+          }
+        </>}
+      </div>
+    </div>
+  );
+}
+
+function LeadsView({leads, selected, onSelect}){
+  if (!leads.length) return <div className="empty">No leads yet. Add enough transactions to trigger lending intent, then run scan.</div>;
+  return <div className="lead-grid">{leads.map(l => <div className="lead-card" key={l.customer_id} onClick={()=>onSelect(l.customer_id)}>
+    <div className="item-top"><div className="item-title">{l.name}</div><span className="pill">{l.tier}</span></div>
+    <div className="item-meta">{l.customer_id} - {l.employment_type} - {l.predicted_loan_type}</div>
+    <div className="lead-score">{Math.round(l.trust_score)}</div>
+    <div className="lead-line"><div className="lead-fill" style={{width:`${Math.min(100,l.trust_score)}%`}}></div></div>
+    <div className="item-meta">Intent {l.intent_score}/100 - outreach: {l.outreach_channel}</div>
+  </div>)}</div>;
+}
+
+function App(){
+  const [auth,setAuth] = useState(()=>{ try { return JSON.parse(localStorage.getItem(storageKey)); } catch { return null; } });
+  const [view,setView] = useState('data');
+  const [stats,setStats] = useState(null);
+  const [leads,setLeads] = useState([]);
+  const [selected,setSelected] = useState('');
+  const [refreshFlag,setRefreshFlag] = useState(0);
+  const [busy,setBusy] = useState(false);
+  const [error,setError] = useState('');
+  const logout = useCallback(() => { localStorage.removeItem(storageKey); setAuth(null); }, []);
+  const api = useApi(auth, logout);
+  const refresh = useCallback(async () => {
+    if (!auth) return;
+    try {
+      const [s,l] = await Promise.all([api('/api/stats'), api('/api/leads?limit=200')]);
+      setStats(s); setLeads(l); setRefreshFlag(v=>v+1);
+    } catch (e) { setError(e.message); }
+  }, [api, auth]);
+  useEffect(()=>{ refresh(); }, [refresh]);
+  const runScan = async () => {
+    setBusy(true); setError('');
+    try { await api('/api/scan', {method:'POST'}); await refresh(); setView('leads'); }
+    catch(e){ setError(e.message); }
+    finally{ setBusy(false); }
+  };
+  const generateDemo = async () => {
+    setBusy(true); setError('');
+    try { await api('/api/generate?n_customers=150', {method:'POST'}); setSelected(''); await refresh(); setView('leads'); }
+    catch(e){ setError(e.message); }
+    finally{ setBusy(false); }
+  };
+  if (!auth) return <AuthScreen onAuth={setAuth} />;
+  const user = auth.user;
+  return (
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="brand"><div className="brand-mark">L</div>LENS</div>
+        <div className="role-card"><div className="name">{user.name}</div><div className="meta">{user.email}<br/>{roleLabel(user.role)}</div></div>
+        <div className="nav">
+          <button className={view==='data'?'active':''} onClick={()=>setView('data')}>Data Entry</button>
+          <button className={view==='leads'?'active':''} onClick={()=>setView('leads')}>Lead Console</button>
+        </div>
+        <button className="ghost-btn" onClick={logout}>Logout</button>
+        <div className="sidebar-bottom">API: {API_BASE}<br/>Empty database mode enabled.</div>
+      </aside>
+      <main className="main">
+        <div className="topbar">
+          <div><h1>{view === 'data' ? 'Customer and Transaction Setup' : 'RM Lead Console'}</h1><div className="sub">Register users, enter source values, scan behaviour, and review explainable lending leads.</div></div>
+          <div className="actions">
+            <button className="btn" onClick={refresh}>Refresh</button>
+            <button className="btn primary" onClick={runScan} disabled={busy || !canWrite(user)}>{busy ? 'Working...' : 'Run scan'}</button>
+            {user.role === 'admin' && <button className="btn warn" onClick={generateDemo} disabled={busy}>Generate demo data</button>}
+          </div>
+        </div>
+        <div className="content">
+          {error && <div className="error">{error}</div>}
+          <div className="grid">
+            <div className="stat"><div className="label">Customers</div><div className="value">{stats?.total_customers ?? 0}</div></div>
+            <div className="stat"><div className="label">Transactions</div><div className="value">{stats?.total_transactions ?? 0}</div></div>
+            <div className="stat"><div className="label">Leads</div><div className="value">{stats?.total_leads ?? 0}</div></div>
+            <div className="stat"><div className="label">Conversion</div><div className="value">{stats?.lead_conversion_rate_pct ?? 0}%</div></div>
+          </div>
+          {view === 'data' ? (
+            <div className="work-grid">
+              <div>
+                <CustomerForm api={api} user={user} onSaved={(id)=>{ setSelected(id); refresh(); }} />
+                <TransactionForm api={api} user={user} selectedCustomer={selected} onSaved={refresh} />
+              </div>
+              <DataView api={api} user={user} refreshFlag={refreshFlag} selected={selected} onPick={setSelected} />
+            </div>
+          ) : (
+            <LeadsView leads={leads} selected={selected} onSelect={setSelected} />
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
