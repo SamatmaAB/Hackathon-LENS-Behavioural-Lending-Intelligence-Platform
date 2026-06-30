@@ -24,7 +24,11 @@ from fastapi import FastAPI, HTTPException, Query, Header, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from backend import data_gen, db, engine
+try:
+    from backend import data_gen, db, engine
+except ImportError:
+    import data_gen, db, engine  # type: ignore[no-redef]
+
 
 BASE_DIR = os.path.dirname(__file__)
 DEFAULT_DB_PATH = os.path.join(tempfile.gettempdir(), "lens.db") if os.getenv("VERCEL") else os.path.join(BASE_DIR, "lens.db")
