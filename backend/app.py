@@ -12,31 +12,26 @@ Run with:  uvicorn app:app --reload --port 8000
 """
 
 import os
-<<<<<<< Updated upstream
 import sqlite3
-from datetime import datetime
-=======
 import secrets
 import tempfile
+import hashlib
+import hmac
 from datetime import datetime, timedelta
 from typing import Optional
->>>>>>> Stashed changes
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Header, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from backend import data_gen, db, engine
 
-<<<<<<< Updated upstream
-DB_PATH = os.path.join(os.path.dirname(__file__), "lens.db")
-=======
 BASE_DIR = os.path.dirname(__file__)
 DEFAULT_DB_PATH = os.path.join(tempfile.gettempdir(), "lens.db") if os.getenv("VERCEL") else os.path.join(BASE_DIR, "lens.db")
 DB_PATH = os.getenv("LENS_DB_PATH", DEFAULT_DB_PATH)
 SESSION_HOURS = 12
 ROLES = {"admin", "relationship_manager", "analyst"}
 WRITE_ROLES = {"admin", "relationship_manager"}
->>>>>>> Stashed changes
 
 app = FastAPI(title="LENS — Behavioural Intelligence Engine", version="1.0.0")
 
@@ -52,17 +47,10 @@ def get_conn():
     return db.connect(DB_PATH)
 
 
-<<<<<<< Updated upstream
 def db_exists():
     return os.path.exists(DB_PATH)
 
 
-@app.on_event("startup")
-def ensure_data():
-    if not db_exists():
-        data_gen.build_database(DB_PATH, n_customers=150, seed=42)
-        engine.run_engine(DB_PATH)
-=======
 AUTH_SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     user_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,16 +98,21 @@ def init_database():
         conn.execute("PRAGMA foreign_keys = ON")
     data_gen.create_schema(conn)
     db.executescript(conn, AUTH_SCHEMA_POSTGRES if db.IS_POSTGRES else AUTH_SCHEMA)
-    user_count = db.scalar(conn, "SELECT COUNT(*) FROM users")
-    if user_count == 0:
-        data_gen.clear_customer_data(conn)
     conn.commit()
     conn.close()
 
 
 @app.on_event("startup")
-def ensure_schema():
+def ensure_schema_and_data():
+    db_already_exists = db_exists()
     init_database()
+    if not db_already_exists:
+        conn = get_conn()
+        customer_count = db.scalar(conn, "SELECT COUNT(*) FROM customers")
+        conn.close()
+        if customer_count == 0:
+            data_gen.build_current_database(n_customers=150, seed=42)
+            engine.run_engine(DB_PATH)
 
 
 def hash_password(password: str, salt: Optional[str] = None):
@@ -282,38 +275,24 @@ def logout(authorization: str = Header(None), user=Depends(require_user)):
 @app.get("/api/roles")
 def roles():
     return {"roles": sorted(ROLES), "write_roles": sorted(WRITE_ROLES)}
->>>>>>> Stashed changes
+
+
 
 
 @app.post("/api/generate")
-def generate(n_customers: int = Query(150, ge=20, le=1000), seed: int = Query(None)):
+def generate(n_customers: int = Query(150, ge=20, le=1000), seed: int = Query(None), user=Depends(require_write_user)):
     seed = seed if seed is not None else datetime.now().microsecond
-<<<<<<< Updated upstream
-    n_cust, n_txn = data_gen.build_database(DB_PATH, n_customers=n_customers, seed=seed)
-=======
     n_cust, n_txn = data_gen.build_current_database(n_customers=n_customers, seed=seed)
     init_database()
->>>>>>> Stashed changes
     summary = engine.run_engine(DB_PATH)
     return {"customers_generated": n_cust, "transactions_generated": n_txn, **summary}
 
 
 @app.get("/api/stats")
-def stats():
+def stats(user=Depends(require_user)):
     if not db_exists():
         raise HTTPException(404, "No dataset yet — call POST /api/generate")
     conn = get_conn()
-<<<<<<< Updated upstream
-    cur = conn.cursor()
-    total_customers = cur.execute("SELECT COUNT(*) FROM customers").fetchone()[0]
-    total_leads = cur.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
-    tiers = dict(cur.execute("SELECT tier, COUNT(*) FROM leads GROUP BY tier").fetchall())
-    avg_hours = cur.execute("SELECT AVG(hours_to_lead) FROM leads").fetchone()[0]
-    match_acc = cur.execute("SELECT AVG(match_correct) FROM leads").fetchone()[0]
-    avg_income_dev = cur.execute("SELECT AVG(income_accuracy_pct) FROM leads "
-                                  "WHERE income_accuracy_pct IS NOT NULL").fetchone()[0]
-    avg_intent = cur.execute("SELECT AVG(intent_score) FROM leads").fetchone()[0]
-=======
     total_customers = db.scalar(conn, "SELECT COUNT(*) FROM customers")
     total_transactions = db.scalar(conn, "SELECT COUNT(*) FROM transactions")
     total_leads = db.scalar(conn, "SELECT COUNT(*) FROM leads")
@@ -322,7 +301,6 @@ def stats():
     match_acc = db.scalar(conn, "SELECT AVG(match_correct) FROM leads")
     avg_income_dev = db.scalar(conn, "SELECT AVG(income_accuracy_pct) FROM leads WHERE income_accuracy_pct IS NOT NULL")
     avg_intent = db.scalar(conn, "SELECT AVG(intent_score) FROM leads")
->>>>>>> Stashed changes
     conn.close()
     return {
         "total_customers": total_customers,
@@ -341,8 +319,7 @@ def stats():
     }
 
 
-<<<<<<< Updated upstream
-=======
+
 @app.get("/api/customers")
 def list_customers(search: str = None, limit: int = 100, user=Depends(require_user)):
     conn = get_conn()
@@ -391,6 +368,10 @@ def create_customer(payload: CustomerRequest, user=Depends(require_write_user)):
             raise HTTPException(status.HTTP_409_CONFLICT, "Customer ID already exists")
         raise
     conn.close()
+    try:
+        engine.run_engine(DB_PATH)
+    except Exception as e:
+        print(f"Error running engine after customer creation: {e}")
     return {"ok": True, "customer_id": payload.customer_id.strip()}
 
 
@@ -418,13 +399,17 @@ def create_transaction(payload: TransactionRequest, user=Depends(require_write_u
     txn_id = db.last_insert_id(cursor)
     conn.commit()
     conn.close()
+    try:
+        engine.run_engine(DB_PATH)
+    except Exception as e:
+        print(f"Error running engine after transaction creation: {e}")
     return {"ok": True, "txn_id": txn_id}
 
 
->>>>>>> Stashed changes
+
 @app.get("/api/leads")
 def list_leads(tier: str = None, search: str = None, sort: str = "trust_score",
-               limit: int = 100):
+               limit: int = 100, user=Depends(require_user)):
     conn = get_conn()
     q = """SELECT l.*, c.name, c.age, c.city, c.state, c.employment_type, c.declared_income
            FROM leads l JOIN customers c ON c.customer_id = l.customer_id WHERE 1=1"""
@@ -447,7 +432,7 @@ def list_leads(tier: str = None, search: str = None, sort: str = "trust_score",
 
 
 @app.get("/api/leads/{customer_id}")
-def lead_detail(customer_id: str):
+def lead_detail(customer_id: str, user=Depends(require_user)):
     conn = get_conn()
     cust_row = db.one(conn, "SELECT * FROM customers WHERE customer_id=?", (customer_id,))
     if not cust_row:
@@ -477,7 +462,7 @@ def lead_detail(customer_id: str):
 
 
 @app.get("/api/customers/{customer_id}/transactions")
-def customer_transactions(customer_id: str):
+def customer_transactions(customer_id: str, user=Depends(require_user)):
     conn = get_conn()
     rows = db.rows(conn, "SELECT * FROM transactions WHERE customer_id=? ORDER BY timestamp DESC", (customer_id,))
     conn.close()
@@ -488,12 +473,8 @@ def customer_transactions(customer_id: str):
 
 @app.get("/api/health")
 def health():
-<<<<<<< Updated upstream
-    return {"status": "ok", "data_ready": db_exists()}
-=======
     conn = get_conn()
     users = db.scalar(conn, "SELECT COUNT(*) FROM users")
     customers = db.scalar(conn, "SELECT COUNT(*) FROM customers")
     conn.close()
     return {"status": "ok", "data_ready": customers > 0, "users_registered": users}
->>>>>>> Stashed changes

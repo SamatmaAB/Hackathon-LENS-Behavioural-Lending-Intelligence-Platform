@@ -246,6 +246,183 @@ body{
   .metric-grid{grid-template-columns:1fr;}
   .income-panel{grid-template-columns:1fr;}
 }
+
+/* ---------- Auth UI ---------- */
+.auth-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+  background: var(--bg);
+  background-image:
+    radial-gradient(circle at 50% 30%, rgba(22,194,174,0.12), transparent 50%),
+    radial-gradient(circle at 50% 70%, rgba(242,135,12,0.06), transparent 45%);
+}
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 400px;
+  padding: 36px 32px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+.auth-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-hi);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.auth-subtitle {
+  font-size: 13px;
+  color: var(--text-mid);
+  margin-bottom: 24px;
+  line-height: 1.4;
+}
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.auth-field label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-low);
+}
+.auth-input {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text-hi);
+  font-family: var(--font-body);
+  font-size: 14px;
+  transition: border-color 0.15s ease;
+  width: 100%;
+}
+.auth-input:focus {
+  border-color: var(--teal);
+  outline: none;
+}
+.auth-select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: var(--text-hi);
+  font-family: var(--font-body);
+  font-size: 14px;
+  width: 100%;
+}
+.auth-select:focus {
+  border-color: var(--teal);
+  outline: none;
+}
+.auth-error {
+  background: rgba(229,72,77,0.08);
+  border: 1px solid rgba(229,72,77,0.35);
+  border-radius: 8px;
+  color: #F2A0A2;
+  font-size: 12.5px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  line-height: 1.4;
+}
+.auth-switch {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-mid);
+  margin-top: 20px;
+}
+.auth-switch span {
+  color: var(--teal);
+  cursor: pointer;
+  font-weight: 500;
+}
+.auth-switch span:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Modal Dialogs ---------- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(4, 7, 14, 0.7);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+.modal-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 500px;
+  padding: 30px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  animation: scaleIn 0.2s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes scaleIn {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 22px;
+}
+.modal-header h3 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-hi);
+}
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-low);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+.modal-close:hover {
+  color: var(--text-hi);
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.form-full {
+  grid-column: span 2;
+}
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
 </style>
 </head>
 <body>
@@ -254,22 +431,18 @@ body{
 <script type="text/babel" data-presets="react">
 const {useState, useEffect, useMemo, useCallback} = React;
 
-<<<<<<< Updated upstream
 const API_BASE = (() => {
-  // Allow overriding via ?api=http://host:port for deployments where the
-  // backend isn't on localhost:8000.
   const params = new URLSearchParams(window.location.search);
-  return params.get('api') || 'http://localhost:8000';
+  if (params.get('api')) return params.get('api');
+  if (window.location.port === '5500') return 'http://localhost:8000';
+  return window.location.origin;
 })();
-=======
-const API_BASE = new URLSearchParams(window.location.search).get('api') || window.location.origin;
 const storageKey = 'lens_auth';
 const emptyCustomer = {
   customer_id:'', name:'', age:32, city:'', state:'', employment_type:'Salaried',
   declared_income:'', true_monthly_income:'', true_loan_type:'None', persona:'manual'
 };
 const emptyTxn = {customer_id:'', type:'SALARY_CREDIT', amount:'', counterparty:'Employer Payroll', timestamp:''};
->>>>>>> Stashed changes
 
 const TIER_COLORS = {'Tier 1': 'var(--tier1)', 'Tier 2': 'var(--tier2)', 'Tier 3': 'var(--tier3)'};
 
@@ -411,19 +584,25 @@ function LeadCard({lead, selected, onClick}) {
 }
 
 /* ---------- Detail panel ---------- */
-function DetailPanel({customerId}) {
+function DetailPanel({customerId, token, onUnauthorized}) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(null);
 
   useEffect(() => {
-    if (!customerId) return;
+    if (!customerId || !token) return;
     setLoading(true); setErr(null);
-    fetch(`${API_BASE}/api/leads/${customerId}`)
-      .then(r => { if (!r.ok) throw new Error('Failed to load lead'); return r.json(); })
+    fetch(`${API_BASE}/api/leads/${customerId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => { 
+        if (r.status === 401) { onUnauthorized(); throw new Error('Session expired'); }
+        if (!r.ok) throw new Error('Failed to load lead'); 
+        return r.json(); 
+      })
       .then(d => { setData(d); setLoading(false); })
       .catch(e => { setErr(e.message); setLoading(false); });
-  }, [customerId]);
+  }, [customerId, token, onUnauthorized]);
 
   if (!customerId) {
     return (
@@ -550,6 +729,15 @@ function DetailPanel({customerId}) {
 
 /* ---------- App ---------- */
 function App() {
+  const [auth, setAuth] = useState(() => {
+    try {
+      const stored = localStorage.getItem(storageKey);
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
   const [stats, setStats] = useState(null);
   const [leads, setLeads] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -560,21 +748,222 @@ function App() {
   const [generating, setGenerating] = useState(false);
   const [connError, setConnError] = useState(null);
 
+  const [usersRegistered, setUsersRegistered] = useState(0);
+  const [authMode, setAuthMode] = useState('login'); 
+  const [authForm, setAuthForm] = useState({ name: '', email: '', password: '', role: 'relationship_manager' });
+  const [authError, setAuthError] = useState(null);
+  const [authLoading, setAuthLoading] = useState(false);
+
+  // --- Modals State ---
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [showTxnModal, setShowTxnModal] = useState(false);
+  const [modalFormError, setModalFormError] = useState(null);
+  const [modalFormLoading, setModalFormLoading] = useState(false);
+
+  const [customerForm, setCustomerForm] = useState({
+    customer_id: '', name: '', age: 32, city: '', state: '', employment_type: 'Salaried',
+    declared_income: '', true_monthly_income: '', true_loan_type: 'None', persona: 'manual'
+  });
+  
+  const [txnForm, setTxnForm] = useState({
+    customer_id: '', type: 'SALARY_CREDIT', amount: '', counterparty: 'Employer Payroll', timestamp: ''
+  });
+
+  const handleCreateCustomerSubmit = (e) => {
+    e.preventDefault();
+    if (!auth) return;
+    setModalFormError(null);
+    setModalFormLoading(true);
+
+    const payload = {
+      ...customerForm,
+      age: parseInt(customerForm.age, 10),
+      declared_income: customerForm.declared_income ? parseFloat(customerForm.declared_income) : null,
+      true_monthly_income: customerForm.true_monthly_income ? parseFloat(customerForm.true_monthly_income) : null,
+    };
+
+    fetch(`${API_BASE}/api/customers`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${auth.token}`
+      },
+      body: JSON.stringify(payload)
+    })
+      .then(async r => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || 'Failed to create customer');
+        return d;
+      })
+      .then((d) => {
+        setModalFormLoading(false);
+        setShowCustomerModal(false);
+        setCustomerForm({
+          customer_id: '', name: '', age: 32, city: '', state: '', employment_type: 'Salaried',
+          declared_income: '', true_monthly_income: '', true_loan_type: 'None', persona: 'manual'
+        });
+        loadAll();
+      })
+      .catch(err => {
+        setModalFormError(err.message);
+        setModalFormLoading(false);
+      });
+  };
+
+  const handleCreateTxnSubmit = (e) => {
+    e.preventDefault();
+    if (!auth) return;
+    setModalFormError(null);
+    setModalFormLoading(true);
+
+    const payload = {
+      ...txnForm,
+      amount: parseFloat(txnForm.amount),
+      timestamp: txnForm.timestamp || null
+    };
+
+    fetch(`${API_BASE}/api/transactions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${auth.token}`
+      },
+      body: JSON.stringify(payload)
+    })
+      .then(async r => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || 'Failed to log transaction');
+        return d;
+      })
+      .then((d) => {
+        setModalFormLoading(false);
+        setShowTxnModal(false);
+        setTxnForm({
+          customer_id: '', type: 'SALARY_CREDIT', amount: '', counterparty: 'Employer Payroll', timestamp: ''
+        });
+        loadAll();
+      })
+      .catch(err => {
+        setModalFormError(err.message);
+        setModalFormLoading(false);
+      });
+  };
+
+  const handleUnauthorized = useCallback(() => {
+    setAuth(null);
+    localStorage.removeItem(storageKey);
+  }, []);
+
+  const checkUsers = useCallback(() => {
+    fetch(`${API_BASE}/api/health`)
+      .then(r => r.json())
+      .then(d => {
+        setUsersRegistered(d.users_registered || 0);
+        if (d.users_registered === 0) {
+          setAuthMode('register');
+          setAuthForm(prev => ({ ...prev, role: 'admin' }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    checkUsers();
+  }, [auth, checkUsers]);
+
   const loadAll = useCallback(() => {
+    if (!auth) return;
     setLoading(true); setConnError(null);
     Promise.all([
-      fetch(`${API_BASE}/api/stats`).then(r => { if (!r.ok) throw new Error('stats'); return r.json(); }),
-      fetch(`${API_BASE}/api/leads?sort=${sort}&limit=200`).then(r => { if (!r.ok) throw new Error('leads'); return r.json(); }),
+      fetch(`${API_BASE}/api/stats`, {
+        headers: { 'Authorization': `Bearer ${auth.token}` }
+      }).then(r => { 
+        if (r.status === 401) { handleUnauthorized(); throw new Error('unauthorized'); }
+        if (!r.ok) throw new Error('stats'); 
+        return r.json(); 
+      }),
+      fetch(`${API_BASE}/api/leads?sort=${sort}&limit=200`, {
+        headers: { 'Authorization': `Bearer ${auth.token}` }
+      }).then(r => { 
+        if (r.status === 401) { handleUnauthorized(); throw new Error('unauthorized'); }
+        if (!r.ok) throw new Error('leads'); 
+        return r.json(); 
+      }),
     ]).then(([s, l]) => { setStats(s); setLeads(l); setLoading(false); if (l.length) setSelected(prev => prev || l[0].customer_id); })
-      .catch(() => { setConnError(true); setLoading(false); });
-  }, [sort]);
+      .catch((e) => { 
+        if (e.message !== 'unauthorized') {
+          setConnError(true); 
+        }
+        setLoading(false); 
+      });
+  }, [sort, auth, handleUnauthorized]);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => { 
+    if (auth) {
+      loadAll(); 
+    }
+  }, [loadAll, auth]);
+
+  const handleAuthSubmit = (e) => {
+    e.preventDefault();
+    setAuthError(null);
+    setAuthLoading(true);
+
+    const url = authMode === 'login' ? `${API_BASE}/api/auth/login` : `${API_BASE}/api/auth/register`;
+    const payload = authMode === 'login'
+      ? { email: authForm.email, password: authForm.password }
+      : { name: authForm.name, email: authForm.email, password: authForm.password, role: authForm.role };
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(async r => {
+        const data = await r.json();
+        if (!r.ok) {
+          throw new Error(data.detail || 'Authentication failed');
+        }
+        return data;
+      })
+      .then(d => {
+        const newAuth = { token: d.token, user: d.user };
+        setAuth(newAuth);
+        localStorage.setItem(storageKey, JSON.stringify(newAuth));
+        setAuthLoading(false);
+      })
+      .catch(err => {
+        setAuthError(err.message);
+        setAuthLoading(false);
+      });
+  };
+
+  const handleLogout = () => {
+    if (!auth) return;
+    fetch(`${API_BASE}/api/auth/logout`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${auth.token}` }
+    })
+      .finally(() => {
+        setAuth(null);
+        localStorage.removeItem(storageKey);
+        setSelected(null);
+        setLeads([]);
+        setStats(null);
+      });
+  };
 
   const handleRegenerate = () => {
+    if (!auth) return;
     setGenerating(true);
-    fetch(`${API_BASE}/api/generate?n_customers=150`, {method: 'POST'})
-      .then(r => r.json())
+    fetch(`${API_BASE}/api/generate?n_customers=150`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${auth.token}` }
+    })
+      .then(r => {
+        if (r.status === 401) { handleUnauthorized(); throw new Error('unauthorized'); }
+        return r.json();
+      })
       .then(() => { setGenerating(false); setSelected(null); loadAll(); })
       .catch(() => setGenerating(false));
   };
@@ -586,6 +975,100 @@ function App() {
       return true;
     });
   }, [leads, tierFilter, search]);
+
+  if (!auth) {
+    return (
+      <div className="auth-container">
+        <div className="auth-card">
+          <div className="auth-title">
+            <IconPulse style={{color:'var(--teal)'}} /> LENS Engine
+          </div>
+          <div className="auth-subtitle">
+            {usersRegistered === 0 
+              ? "Welcome! Initialize the system by registering the primary Administrator account." 
+              : "Access the RM Lead Console with your authorized credentials."}
+          </div>
+          
+          <form onSubmit={handleAuthSubmit}>
+            {authError && <div className="auth-error">{authError}</div>}
+            
+            {authMode === 'register' && (
+              <div className="auth-field">
+                <label>Full Name</label>
+                <input 
+                  type="text" 
+                  className="auth-input"
+                  required
+                  placeholder="e.g. Shrinivas Raman"
+                  value={authForm.name} 
+                  onChange={e => setAuthForm({...authForm, name: e.target.value})}
+                />
+              </div>
+            )}
+            
+            <div className="auth-field">
+              <label>Email Address</label>
+              <input 
+                type="email" 
+                className="auth-input" 
+                required
+                placeholder="name@idbibank.com"
+                value={authForm.email} 
+                onChange={e => setAuthForm({...authForm, email: e.target.value})}
+              />
+            </div>
+            
+            <div className="auth-field">
+              <label>Password</label>
+              <input 
+                type="password" 
+                className="auth-input" 
+                required
+                minLength="8"
+                placeholder="••••••••"
+                value={authForm.password} 
+                onChange={e => setAuthForm({...authForm, password: e.target.value})}
+              />
+            </div>
+            
+            {authMode === 'register' && usersRegistered > 0 && (
+              <div className="auth-field">
+                <label>Assigned Role</label>
+                <select 
+                  className="auth-select"
+                  value={authForm.role} 
+                  onChange={e => setAuthForm({...authForm, role: e.target.value})}
+                >
+                  <option value="relationship_manager">Relationship Manager</option>
+                  <option value="analyst">Analyst</option>
+                  <option value="admin">Administrator</option>
+                </select>
+              </div>
+            )}
+            
+            <button 
+              type="submit" 
+              className="btn primary" 
+              style={{width: '100%', justifyContent: 'center', padding: '11px', marginTop: '10px'}}
+              disabled={authLoading}
+            >
+              {authLoading ? 'Authorizing...' : authMode === 'login' ? 'Sign In' : 'Create Account'}
+            </button>
+          </form>
+          
+          {usersRegistered > 0 && (
+            <div className="auth-switch">
+              {authMode === 'login' ? (
+                <>Need an account? <span onClick={() => { setAuthMode('register'); setAuthForm(prev => ({ ...prev, role: 'relationship_manager' })); }}>Register here</span></>
+              ) : (
+                <>Already have an account? <span onClick={() => setAuthMode('login')}>Sign in here</span></>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (connError) {
     return (
@@ -609,6 +1092,15 @@ function App() {
         <div className="nav-icon active"><IconList/></div>
         <div className="nav-icon"><IconUser/></div>
         <div className="sidebar-spacer"></div>
+        {auth && (
+          <div className="nav-icon" onClick={handleLogout} title="Sign Out" style={{color: 'var(--red)', marginBottom: 12}}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </div>
+        )}
         <div className="sidebar-foot">LENS · IDBI INNOVATE</div>
       </div>
 
@@ -619,7 +1111,29 @@ function App() {
             <div className="sub">Behavioural intelligence engine · ranked, explainable, real-time leads</div>
           </div>
           <div className="topbar-actions">
-            <button className="btn primary" onClick={handleRegenerate} disabled={generating}>
+            {auth && (
+              <span style={{fontSize: 13, color: 'var(--text-mid)', marginRight: 12, display: 'inline-flex', alignItems: 'center', gap: 6}}>
+                <span className="dot" style={{background: auth.user.role === 'admin' ? 'var(--amber)' : auth.user.role === 'relationship_manager' ? 'var(--teal)' : 'var(--text-low)', width: 8, height: 8, borderRadius: '50%', display: 'inline-block'}}></span>
+                <b>{auth.user.name}</b> ({auth.user.role.toUpperCase().replace('_', ' ')})
+              </span>
+            )}
+            
+            {auth && (auth.user.role === 'admin' || auth.user.role === 'relationship_manager') ? (
+              <>
+                <button className="btn" onClick={() => { setModalFormError(null); setShowCustomerModal(true); }} style={{borderColor: 'var(--teal-dim)'}}>
+                  + Create Customer
+                </button>
+                <button className="btn" onClick={() => { setModalFormError(null); setShowTxnModal(true); }} style={{borderColor: 'var(--teal-dim)'}}>
+                  + Add Transaction
+                </button>
+              </>
+            ) : (
+              <span style={{fontSize: 12, color: 'var(--text-low)', fontStyle: 'italic', marginRight: 12}}>
+                Read-Only Console
+              </span>
+            )}
+
+            <button className="btn primary" onClick={handleRegenerate} disabled={generating || (auth && auth.user.role === 'analyst')}>
               <IconRefresh/> {generating ? 'Scanning transactions…' : 'Regenerate dataset & rescan'}
             </button>
           </div>
@@ -656,10 +1170,229 @@ function App() {
             </div>
           </div>
           <div className="detail">
-            <DetailPanel customerId={selected} />
+            <DetailPanel customerId={selected} token={auth?.token} onUnauthorized={handleUnauthorized} />
           </div>
         </div>
       </div>
+
+      {/* ---------- Create Customer Modal ---------- */}
+      {showCustomerModal && (
+        <div className="modal-overlay" onClick={() => setShowCustomerModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Create New Customer</h3>
+              <button className="modal-close" onClick={() => setShowCustomerModal(false)}>&times;</button>
+            </div>
+            
+            {modalFormError && <div className="auth-error">{modalFormError}</div>}
+            
+            <form onSubmit={handleCreateCustomerSubmit}>
+              <div className="form-grid">
+                <div className="auth-field">
+                  <label>Customer ID</label>
+                  <input 
+                    type="text" 
+                    className="auth-input" 
+                    required 
+                    placeholder="e.g. CUST10151" 
+                    value={customerForm.customer_id}
+                    onChange={e => setCustomerForm({...customerForm, customer_id: e.target.value})}
+                  />
+                </div>
+                
+                <div className="auth-field">
+                  <label>Full Name</label>
+                  <input 
+                    type="text" 
+                    className="auth-input" 
+                    required 
+                    placeholder="e.g. Rajesh Kumar" 
+                    value={customerForm.name}
+                    onChange={e => setCustomerForm({...customerForm, name: e.target.value})}
+                  />
+                </div>
+                
+                <div className="auth-field">
+                  <label>Age</label>
+                  <input 
+                    type="number" 
+                    className="auth-input" 
+                    required 
+                    min="18" max="100"
+                    value={customerForm.age}
+                    onChange={e => setCustomerForm({...customerForm, age: e.target.value})}
+                  />
+                </div>
+                
+                <div className="auth-field">
+                  <label>Employment Type</label>
+                  <select 
+                    className="auth-select"
+                    value={customerForm.employment_type}
+                    onChange={e => setCustomerForm({...customerForm, employment_type: e.target.value})}
+                  >
+                    <option value="Salaried">Salaried</option>
+                    <option value="Self-Employed">Self-Employed</option>
+                    <option value="Gig Worker">Gig Worker</option>
+                    <option value="Freelancer">Freelancer</option>
+                  </select>
+                </div>
+                
+                <div className="auth-field">
+                  <label>City</label>
+                  <input 
+                    type="text" 
+                    className="auth-input" 
+                    required 
+                    placeholder="e.g. Pune" 
+                    value={customerForm.city}
+                    onChange={e => setCustomerForm({...customerForm, city: e.target.value})}
+                  />
+                </div>
+                
+                <div className="auth-field">
+                  <label>State</label>
+                  <input 
+                    type="text" 
+                    className="auth-input" 
+                    required 
+                    placeholder="e.g. Maharashtra" 
+                    value={customerForm.state}
+                    onChange={e => setCustomerForm({...customerForm, state: e.target.value})}
+                  />
+                </div>
+                
+                <div className="auth-field">
+                  <label>Declared Monthly Income (₹)</label>
+                  <input 
+                    type="number" 
+                    className="auth-input" 
+                    placeholder="e.g. 75000" 
+                    value={customerForm.declared_income || ''}
+                    onChange={e => setCustomerForm({...customerForm, declared_income: e.target.value})}
+                  />
+                </div>
+                
+                <div className="auth-field">
+                  <label>Actual Monthly Income (₹)</label>
+                  <input 
+                    type="number" 
+                    className="auth-input" 
+                    placeholder="e.g. 80000" 
+                    value={customerForm.true_monthly_income || ''}
+                    onChange={e => setCustomerForm({...customerForm, true_monthly_income: e.target.value})}
+                  />
+                </div>
+                
+                <div className="auth-field form-full">
+                  <label>Realized Loan Type (Ground Truth)</label>
+                  <select 
+                    className="auth-select"
+                    value={customerForm.true_loan_type}
+                    onChange={e => setCustomerForm({...customerForm, true_loan_type: e.target.value})}
+                  >
+                    <option value="None">None</option>
+                    <option value="Personal Loan">Personal Loan</option>
+                    <option value="Auto Loan">Auto Loan</option>
+                    <option value="Home Loan">Home Loan</option>
+                    <option value="Mortgage">Mortgage</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="form-actions">
+                <button type="button" className="btn" onClick={() => setShowCustomerModal(false)}>Cancel</button>
+                <button type="submit" className="btn primary" disabled={modalFormLoading}>
+                  {modalFormLoading ? 'Creating...' : 'Create Customer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ---------- Add Transaction Modal ---------- */}
+      {showTxnModal && (
+        <div className="modal-overlay" onClick={() => setShowTxnModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Log New Transaction</h3>
+              <button className="modal-close" onClick={() => setShowTxnModal(false)}>&times;</button>
+            </div>
+            
+            {modalFormError && <div className="auth-error">{modalFormError}</div>}
+            
+            <form onSubmit={handleCreateTxnSubmit}>
+              <div className="auth-field">
+                <label>Target Customer</label>
+                <select 
+                  className="auth-select"
+                  required
+                  value={txnForm.customer_id}
+                  onChange={e => setTxnForm({...txnForm, customer_id: e.target.value})}
+                >
+                  <option value="">-- Select Customer --</option>
+                  {leads.map(l => (
+                    <option key={l.customer_id} value={l.customer_id}>{l.name} ({l.customer_id})</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="form-grid">
+                <div className="auth-field">
+                  <label>Transaction Type</label>
+                  <select 
+                    className="auth-select"
+                    value={txnForm.type}
+                    onChange={e => setTxnForm({...txnForm, type: e.target.value})}
+                  >
+                    <option value="SALARY_CREDIT">SALARY_CREDIT</option>
+                    <option value="UPI_CREDIT">UPI_CREDIT</option>
+                    <option value="UPI_DEBIT">UPI_DEBIT</option>
+                    <option value="IMPS">IMPS</option>
+                    <option value="NEFT">NEFT</option>
+                    <option value="EMI_DEBIT">EMI_DEBIT</option>
+                    <option value="BILL_PAY">BILL_PAY</option>
+                    <option value="WALLET_TOPUP">WALLET_TOPUP</option>
+                  </select>
+                </div>
+                
+                <div className="auth-field">
+                  <label>Amount (₹)</label>
+                  <input 
+                    type="number" 
+                    className="auth-input" 
+                    required 
+                    min="1" 
+                    placeholder="e.g. 5000" 
+                    value={txnForm.amount}
+                    onChange={e => setTxnForm({...txnForm, amount: e.target.value})}
+                  />
+                </div>
+                
+                <div className="auth-field form-full">
+                  <label>Counterparty Name</label>
+                  <input 
+                    type="text" 
+                    className="auth-input" 
+                    required 
+                    placeholder="e.g. HDFC Credit Card, Employer Payroll" 
+                    value={txnForm.counterparty}
+                    onChange={e => setTxnForm({...txnForm, counterparty: e.target.value})}
+                  />
+                </div>
+              </div>
+              
+              <div className="form-actions">
+                <button type="button" className="btn" onClick={() => setShowTxnModal(false)}>Cancel</button>
+                <button type="submit" className="btn primary" disabled={modalFormLoading}>
+                  {modalFormLoading ? 'Logging...' : 'Log Transaction'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
