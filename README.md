@@ -90,6 +90,55 @@ channel and window, and the underlying transaction stream that produced it.
   weighted trigger scoring) instead — easier to explain to underwriting and
   RBI compliance reviewers, and a clean drop-in point to swap in trained
   models later without touching the API contract.
-- **Data**: transactions are synthetically generated with realistic personas
+- Data: transactions are synthetically generated with realistic personas
   (a home-loan-intent persona, an auto-loan persona, etc.) so the engine has
   real signal to detect — it isn't fed pre-labelled answers.
+
+## Governance, Compliance & Business ROI
+
+We run a suite of automated governance metrics dynamically against our SQLite data store to audit fairness, regulatory compliance, sandbox schemas, and return-on-investment (ROI).
+
+### 1. Fairness Audit and Findings
+Evaluating the engine output on our default 150-customer dataset (generated with random seed `42`) reveals a systematic **Fairness Gap**:
+* **Observation**: Gig Workers and Freelancers represent **37%** of our customers, but they currently generate **0 leads**.
+* **Root Cause**: The maximum intent score for these segments is **43**, which is below the static `LEAD_THRESHOLD` of **45**. Their irregular income structures and trigger weights result in a lower raw propensity score, meaning they are completely locked out of credit offers.
+* **Dynamic Mitigation**: We have implemented dynamic fairness analysis. If a segment's conversion rate trails the best-converting segment (Salaried, at **65.4%**) by **20 percentage points or more**, it is flagged for intervention. This allows the system to auto-detect and flag biases on any future dataset.
+
+### 2. DPDP Act & RBI Compliance Considerations
+The governance module evaluates LENS against the Indian digital lending regulatory landscape:
+* **DPDP Act (2023)**: Requires explicit customer consent tracking and data minimization. LENS complies with data minimization (storing only transaction metadata, avoiding PII/raw chat payloads) but requires adding dedicated consent logs and right-to-erasure workflows in production.
+* **RBI Digital Lending Guidelines**: Mandates auditable lead cards, transparency of scoring, and data localization. LENS excels in explainability since all triggers are mapped to transaction records in SQLite. However, RM consoles require access log audit trails, and threshold parameter changes require Maker-Checker verification.
+* **Risk Assessment**: CLARITY dynamically calculates model risk by comparing Synthetic Monthly Income against ground-truth income (tracking average income deviation, which is currently **0%** variance for salary clustering and highly accurate for irregular inflows).
+
+### 3. Sandbox Field Mapping
+Third-party systems integrate with LENS via standard sandbox mappings. The internal schemas are transformed as follows:
+* `customers.customer_id` → `client_ref_id` (Direct mapping, alphanumeric)
+* `customers.name` → `customer_full_name` (Direct mapping)
+* `customers.employment_type` → `employment_classification` (Enum mapping)
+* `transactions.type` → `txn_category` (Enum mapped to standard categories)
+* `leads.intent_score` → `propensity_index` (Normalized to a float between `0.0` and `1.0` via `intent_score / 100.0`)
+* `leads.tier` → `risk_segment` (Mapped 'Tier 1' → 'LOW_RISK', 'Tier 2' → 'MEDIUM_RISK', etc.)
+* *Note*: Internal evaluation metrics like `persona` and `match_correct` are excluded from the sandbox mappings.
+
+### 4. Business ROI Methodology
+ROI is calculated dynamically based on real data counts in `lens.db`:
+* **Cost Assumptions**:
+  * **Data/Compute Cost**: ₹5 per customer assessment.
+  * **Outreach Cost**: ₹50 per lead contacted (RM Call, notifications, or prompts).
+* **Expected Return**:
+  * **Expected Disbursal Rate**: 15% of generated leads.
+  * **Average Disbursal Profit**: 3% yield on a ₹2,00,000 loan (equals ₹6,000 net profit per loan).
+* **Formula**:
+  * $\text{Assessment Cost} = \text{Total Customers} \times ₹5$
+  * $\text{Outreach Cost} = \text{Total Leads} \times ₹50$
+  * $\text{Expected Revenue} = \text{Total Leads} \times 15\% \times ₹6000$
+  * $\text{ROI Multiplier} = \frac{\text{Expected Revenue}}{\text{Assessment Cost} + \text{Outreach Cost}}$
+* **Current ROI Stats**: Based on the 150-customer dataset (45 leads), the assessment and outreach cost is ₹3,000. Expected revenue is ₹40,500, yielding a net profit of **₹37,500** and a **13.5x ROI Multiplier**.
+
+### 5. Governance API Endpoints
+All endpoints are secured via Bearer tokens (`Depends(require_user)`):
+* `GET /api/governance/fairness`: Dynamic conversion rates, segment statistics, and flagged underperforming segments.
+* `GET /api/governance/compliance`: Standard audits against DPDP 2023 and RBI Lending Guidelines, listing gaps and recommendations.
+* `GET /api/governance/sandbox-mapping`: Machine-readable mapping configurations between internal and sandbox variables.
+* `GET /api/governance/roi`: Financial ROI calculations and cost-benefit breakdowns by customer segment.
+

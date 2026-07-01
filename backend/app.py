@@ -17,17 +17,18 @@ import secrets
 import tempfile
 import hashlib
 import hmac
+import logging
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, HTTPException, Query, Header, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 try:
-    from backend import data_gen, db, engine
+    from backend import data_gen, db, engine, governance
 except ImportError:
-    import data_gen, db, engine  # type: ignore[no-redef]
+    import data_gen, db, engine, governance  # type: ignore[no-redef]
 
 
 BASE_DIR = os.path.dirname(__file__)
@@ -213,6 +214,85 @@ class TransactionRequest(BaseModel):
     type: str = Field(..., pattern="^(UPI_CREDIT|SALARY_CREDIT|UPI_DEBIT|IMPS|NEFT|EMI_DEBIT|BILL_PAY|WALLET_TOPUP)$")
     amount: float = Field(..., gt=0)
     counterparty: str = Field(..., min_length=2, max_length=120)
+
+
+# Governance API Response Schemas
+class SegmentStat(BaseModel):
+    segment_name: str
+    total_customers: int
+    total_leads: int
+    conversion_rate_pct: float
+    is_underperforming: bool
+    gap_to_best_pp: float
+
+class FlaggedSegment(BaseModel):
+    segment_name: str
+    conversion_rate_pct: float
+    gap_to_best_pp: float
+    recommendation: str
+
+class FairnessResponse(BaseModel):
+    segments: List[SegmentStat]
+    best_performing_segment: Optional[str]
+    best_conversion_rate_pct: float
+    underperforming_segments: List[str]
+    flagged_segments: List[FlaggedSegment]
+    recommendation_summary: str
+
+class ComplianceStandard(BaseModel):
+    status: str
+    description: str
+    considerations: str
+    gaps: List[str]
+    recommendations: List[str]
+
+class ComplianceResponse(BaseModel):
+    compliance_status: str
+    standards: Dict[str, ComplianceStandard]
+    overall_summary: str
+    gaps: List[str]
+    recommendations: List[str]
+    governance_notes: str
+
+class FieldMapping(BaseModel):
+    internal_field: str
+    sandbox_field: str
+    transformation: str
+    status: str
+    validation_rules: str
+
+class MissingMapping(BaseModel):
+    internal_field: str
+    sandbox_field: str
+    reason: str
+
+class SandboxMappingResponse(BaseModel):
+    mappings: List[FieldMapping]
+    missing_mappings: List[MissingMapping]
+    validation_notes: str
+    schema_version: str
+
+class SegmentROIPerformance(BaseModel):
+    segment_name: str
+    total_customers: int
+    total_leads: int
+    conversion_rate_pct: float
+    estimated_outreach_cost: float
+    expected_loans_disbursed: float
+    expected_revenue: float
+    roi_pct: float
+
+class ROIResponse(BaseModel):
+    total_customers: int
+    total_leads: int
+    conversion_rate_pct: float
+    estimated_revenue: float
+    estimated_cost: float
+    net_profit: float
+    roi_multiplier: float
+    segment_performance: List[SegmentROIPerformance]
+    cost_assumptions: Dict[str, float]
+
 
 
 @app.post("/api/auth/register")
@@ -482,3 +562,57 @@ def health():
     customers = db.scalar(conn, "SELECT COUNT(*) FROM customers")
     conn.close()
     return {"status": "ok", "data_ready": customers > 0, "users_registered": users}
+
+
+@app.get("/api/governance/fairness", response_model=FairnessResponse)
+def get_fairness_report(user=Depends(require_user)):
+    """
+    Returns a dynamic fairness audit evaluating conversion rates and gaps
+    across customer segments (employment types).
+    """
+    try:
+        return governance.generate_fairness_report(DB_PATH)
+    except Exception as e:
+        logger = logging.getLogger("lens.app")
+        logger.error(f"Error in /api/governance/fairness: {e}", exc_info=True)
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@app.get("/api/governance/compliance", response_model=ComplianceResponse)
+def get_compliance_report(user=Depends(require_user)):
+    """
+    Returns an audit report assessing data minimization, explainability, audit trails,
+    and compliance with RBI lending guidelines and India DPDP Act 2023.
+    """
+    try:
+        return governance.generate_compliance_report(DB_PATH)
+    except Exception as e:
+        logger = logging.getLogger("lens.app")
+        logger.error(f"Error in /api/governance/compliance: {e}", exc_info=True)
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@app.get("/api/governance/sandbox-mapping", response_model=SandboxMappingResponse)
+def get_sandbox_mapping(user=Depends(require_user)):
+    """
+    Returns schema field mapping details between LENS internal structures and standard API sandboxes.
+    """
+    try:
+        return governance.generate_sandbox_mapping()
+    except Exception as e:
+        logger = logging.getLogger("lens.app")
+        logger.error(f"Error in /api/governance/sandbox-mapping: {e}", exc_info=True)
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@app.get("/api/governance/roi", response_model=ROIResponse)
+def get_roi_report(user=Depends(require_user)):
+    """
+    Returns dynamic cost-benefit estimates and ROI multipliers derived from current lead counts.
+    """
+    try:
+        return governance.generate_roi_report(DB_PATH)
+    except Exception as e:
+        logger = logging.getLogger("lens.app")
+        logger.error(f"Error in /api/governance/roi: {e}", exc_info=True)
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

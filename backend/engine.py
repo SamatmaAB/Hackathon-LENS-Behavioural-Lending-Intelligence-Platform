@@ -215,7 +215,7 @@ def predict_loan_type(fired_keys, customer_id=""):
 
     # deterministic pseudo-randomness so re-running the same dataset gives
     # the same answer, but different customers get realistic variance
-    h = int(hashlib.sha1(customer_id.encode()).hexdigest(), 16) % 100
+    h = int(hashlib.sha1(customer_id.encode()).hexdigest(), 16) % 100  # nosec B324
     if h < 32 and base_conf < 0.85:  # ~32% of ambiguous cases get reclassified
         alt_pool = [l for l in ("Personal Loan", "Auto Loan", "Home Loan", "Mortgage") if l != base_pred]
         base_pred = alt_pool[h % len(alt_pool)]
@@ -269,6 +269,57 @@ LEAD_THRESHOLD = 45  # Intent Score required to enter the lead pipeline (calibra
                       # so conversion lands near the prototype's benchmarked ~31%)
 
 
+def score_customer(customer, txns=None, conn=None, db_path=None):
+    """Scores a single customer independently, returning their intent score, triggers, income,
+    loan type, outreach, and trust score, regardless of whether they clear the lead threshold."""
+    if txns is None:
+        close_conn = False
+        if conn is None:
+            conn = db.connect(db_path)
+            close_conn = True
+        txns = db.rows(conn, "SELECT * FROM transactions WHERE customer_id=? ORDER BY timestamp", (customer["customer_id"],))
+        if close_conn:
+            conn.close()
+
+    if not txns:
+        return None
+
+    fired = _detect_triggers(txns)
+    fired_keys = list(fired.keys())
+    intent_score = compute_intent_score(fired_keys)
+    is_lead = intent_score >= LEAD_THRESHOLD
+
+    income_record = reconstruct_income(customer, txns)
+    predicted_loan, match_conf = predict_loan_type(fired_keys, customer["customer_id"])
+
+    if fired:
+        latest_txn_time = max(datetime.fromisoformat(t["timestamp"]) for t in fired.values())
+    else:
+        latest_txn_time = max(datetime.fromisoformat(t["timestamp"]) for t in txns) if txns else datetime.now()
+
+    channel, w_start, w_end = determine_outreach(customer, fired_keys, latest_txn_time)
+    trust, tier, income_confidence, repay_score = compute_trust_score(intent_score, income_record, fired_keys)
+
+    return {
+        "customer_id": customer["customer_id"],
+        "intent_score": intent_score,
+        "is_lead": is_lead,
+        "triggers_fired": fired_keys,
+        "fired_details": fired,
+        "reconstructed_income": income_record,
+        "predicted_loan_type": predicted_loan,
+        "match_confidence": match_conf,
+        "outreach_channel": channel,
+        "outreach_window_start": w_start,
+        "outreach_window_end": w_end,
+        "trust_score": trust,
+        "tier": tier,
+        "income_confidence": income_confidence,
+        "repay_score": repay_score,
+        "latest_txn_time": latest_txn_time
+    }
+
+
 def run_engine(db_path=None):
     """Runs PULSE -> CLARITY -> MATCH -> MOMENT -> TRUST for every customer
     and (re)writes the leads table. Returns summary counters."""
@@ -289,22 +340,27 @@ def run_engine(db_path=None):
         if not txns:
             continue
 
-        fired = _detect_triggers(txns)
-        fired_keys = list(fired.keys())
-        intent_score = compute_intent_score(fired_keys)
-
-        if intent_score < LEAD_THRESHOLD:
+        score_res = score_customer(cust, txns=txns, conn=conn)
+        if not score_res:
             continue
 
-        income_record = reconstruct_income(cust, txns)
-        predicted_loan, match_conf = predict_loan_type(fired_keys, cust["customer_id"])
+        if not score_res["is_lead"]:
+            continue
+
+        intent_score = score_res["intent_score"]
+        fired_keys = score_res["triggers_fired"]
+        income_record = score_res["reconstructed_income"]
+        predicted_loan = score_res["predicted_loan_type"]
         match_correct = int(predicted_loan == cust["true_loan_type"])
         if cust["true_loan_type"] == "None":
             n_false_positive += 1
 
-        latest_txn_time = max(datetime.fromisoformat(t["timestamp"]) for t in fired.values())
-        channel, w_start, w_end = determine_outreach(cust, fired_keys, latest_txn_time)
-        trust, tier, _, _ = compute_trust_score(intent_score, income_record, fired_keys)
+        latest_txn_time = score_res["latest_txn_time"]
+        channel = score_res["outreach_channel"]
+        w_start = score_res["outreach_window_start"]
+        w_end = score_res["outreach_window_end"]
+        trust = score_res["trust_score"]
+        tier = score_res["tier"]
 
         hours_to_lead = round(_r.uniform(0.4, 7.5), 2)
         signal_at = latest_txn_time
@@ -342,3 +398,4 @@ def run_engine(db_path=None):
     }
     conn.close()
     return summary
+
