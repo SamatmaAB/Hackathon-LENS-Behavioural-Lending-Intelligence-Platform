@@ -2589,15 +2589,23 @@ function LeadsView({stats, leads, selected, setSelected, loading, sort, setSort,
           </div>
           <div className="queue-list">
             {loading ? <div style={{padding:30, textAlign:'center'}}><div className="spinner" style={{margin:'0 auto'}}></div></div> :
-              leads.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads match this filter.</div> :
-              leads.map(l => (
+              leads.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads yet — click Regenerate &amp; Rescan to populate the console.</div> :
+              filtered.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads match this filter.</div> :
+              filtered.map(l => (
                 <LeadCard key={l.customer_id} lead={l} selected={selected===l.customer_id} onClick={()=>setSelected(l.customer_id)} />
               ))
             }
           </div>
         </div>
         <div className="detail">
-          <DetailPanel customerId={selected} token={token} onUnauthorized={onUnauthorized} />
+          {generating ? (
+            <div style={{ padding: 40, background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 16 }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', marginBottom: 20, color: 'var(--text-hi)' }}>Live Transaction Ingestion &amp; Pipeline Scan</h3>
+              <LiveScanAnimation active={generating} />
+            </div>
+          ) : (
+            <DetailPanel customerId={selected} token={token} onUnauthorized={onUnauthorized} />
+          )}
         </div>
       </div>
     </>
