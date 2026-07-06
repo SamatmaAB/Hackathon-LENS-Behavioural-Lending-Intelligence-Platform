@@ -1951,7 +1951,7 @@ function GovernanceDashboard({leads, stats, token, onUnauthorized}) {
             </div>
           </div>
 
-          <div style={{display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, alignItems: 'start'}}>
+          <div style={{display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: 24, alignItems: 'start'}}>
             <div>
               <h4 style={{margin: '0 0 12px'}}>Confusion Matrix</h4>
               <div style={{overflowX: 'auto', background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 16}}>
@@ -2020,7 +2020,7 @@ function GovernanceDashboard({leads, stats, token, onUnauthorized}) {
           </div>
         </div>
 
-        <div style={{display: 'grid', gridTemplateColumns: '1.2fr 1.1fr', gap: 24, marginTop: 28}}>
+        <div style={{display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1.1fr)', gap: 24, marginTop: 28}}>
           <ConfusionMatrixHeatmap matrix={matrixArray} labels={classes} />
           <TriggerCooccurrenceMatrix triggerNames={triggerNames} coMatrix={coMatrix} />
         </div>
@@ -2037,7 +2037,7 @@ function GovernanceDashboard({leads, stats, token, onUnauthorized}) {
             Monitors lending conversion rates across demographics. If any segment underperforms the best segment by <b>20 percentage points or more</b>, it triggers an algorithmic warning.
           </p>
 
-          <div style={{display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, alignItems: 'start'}}>
+          <div style={{display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: 24, alignItems: 'start'}}>
             <div>
               <h4 style={{margin: '0 0 12px'}}>Segment Conversion Rates</h4>
               <div style={{background: 'var(--surface-2)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginBottom: 20}}>
@@ -2103,7 +2103,7 @@ function GovernanceDashboard({leads, stats, token, onUnauthorized}) {
             Audits LENS against statutory frameworks: India's Digital Personal Data Protection (DPDP) Act 2023 and RBI Digital Lending Guidelines.
           </p>
 
-          <div style={{display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, alignItems: 'start'}}>
+          <div style={{display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: 24, alignItems: 'start'}}>
             <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
               {Object.entries(standards).map(([key, std]) => {
                 const isCompliant = std.status === 'Compliant';
@@ -2236,7 +2236,7 @@ function GovernanceDashboard({leads, stats, token, onUnauthorized}) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, marginBottom: 28, alignItems: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: 24, marginBottom: 28, alignItems: 'center' }}>
             <PipelineFunnel stages={funnelStages} />
             <RoiDonut 
               assessmentCost={total_customers * (cost_assumptions?.cost_per_assessment || 5.0)}
@@ -2284,7 +2284,7 @@ function GovernanceDashboard({leads, stats, token, onUnauthorized}) {
   };
 
   return (
-    <div style={{padding: '24px 32px'}}>
+    <div style={{padding: '24px 32px', overflowY: 'auto', flex: 1}}>
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-soft)', paddingBottom: 16, marginBottom: 20}}>
         <div>
           <h2 style={{fontFamily: 'var(--font-display)', fontSize: 22, margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 10}}>
