@@ -845,6 +845,71 @@ function FairnessBarChart({ segments }) {
   );
 }
 
+/* ---------- Illustrative city-level lead concentration map ----------
+   NOTE: This is a simplified illustrative scatter projection, not a
+   precise cartographic trace of India's borders - coordinates are
+   approximate and for visualization only. */
+function GeoDistributionMap({ cities }) {
+  if (!cities || cities.length === 0) {
+    return <div className="empty-state">No geographic data yet - generate a dataset first.</div>;
+  }
+
+  const w = 420, h = 460;
+  // Rough India bounding box for a simple linear projection
+  const LAT_MIN = 8, LAT_MAX = 35, LNG_MIN = 68, LNG_MAX = 97;
+
+  const project = (lat, lng) => {
+    const x = ((lng - LNG_MIN) / (LNG_MAX - LNG_MIN)) * (w - 40) + 20;
+    const y = h - (((lat - LAT_MIN) / (LAT_MAX - LAT_MIN)) * (h - 40) + 20);
+    return { x, y };
+  };
+
+  const maxLeads = Math.max(...cities.map(c => c.lead_count), 1);
+  const radius = (count) => 6 + (count / maxLeads) * 22;
+
+  // Trust score -> color, matching the existing tier palette
+  const trustColor = (score) => {
+    if (score >= 70) return "var(--tier1, #2dd4bf)";
+    if (score >= 45) return "var(--tier2, #f59e0b)";
+    return "var(--tier3, #6b7280)";
+  };
+
+  return (
+    <div style={{ textAlign: "center" }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-low)",
+                    textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 15 }}>
+        Lead Concentration by City (illustrative)
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" style={{ maxWidth: 440, display: "block", margin: "0 auto" }}>
+        <rect x="10" y="10" width={w - 20} height={h - 20} rx="16"
+              fill="none" stroke="var(--border)" strokeDasharray="4 4" />
+        {cities.map((c, i) => {
+          const { x, y } = project(c.lat, c.lng);
+          const r = radius(c.lead_count);
+          return (
+            <g key={c.city}>
+              <circle cx={x} cy={y} r={r} fill={trustColor(c.avg_trust_score)} opacity="0.75" />
+              <circle cx={x} cy={y} r={r} fill="none" stroke={trustColor(c.avg_trust_score)} strokeWidth="1.5" />
+              <text x={x} y={y - r - 6} textAnchor="middle" fontSize="10"
+                    fill="var(--text-high, #e5e5e5)" fontWeight="600">
+                {c.city}
+              </text>
+              <text x={x} y={y + 4} textAnchor="middle" fontSize="10" fill="#fff" fontWeight="700">
+                {c.lead_count}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 10, fontSize: 11 }}>
+        <span><span style={{ color: "var(--tier1, #2dd4bf)" }}>{"\u25cf"}</span> Tier 1 avg trust</span>
+        <span><span style={{ color: "var(--tier2, #f59e0b)" }}>{"\u25cf"}</span> Tier 2 avg trust</span>
+        <span><span style={{ color: "var(--tier3, #6b7280)" }}>{"\u25cf"}</span> Tier 3 avg trust</span>
+      </div>
+    </div>
+  );
+}
+
 function RoiDonut({ assessmentCost, outreachCost, netProfit }) {
   const total = assessmentCost + outreachCost + (netProfit > 0 ? netProfit : 0);
   const p1 = total > 0 ? (assessmentCost / total) * 100 : 0;
@@ -1173,6 +1238,217 @@ function TransactionSpikeChart({ dailyVolumes, triggerDays }) {
   );
 }
 
+function TriggerContributionChart({ triggers }) {
+  if (!triggers || triggers.length === 0) return null;
+  const sorted = [...triggers].sort((a, b) => b.contribution - a.contribution);
+  const w = 420, rowH = 34, h = sorted.length * rowH + 20;
+
+  return (
+    <div style={{ marginTop: 20 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-low)",
+                    textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 12 }}>
+        Trigger Contribution to Intent Score
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
+        {sorted.map((t, i) => {
+          const barMaxW = w - 160;
+          const barW = (t.contribution / 100) * barMaxW;
+          const y = i * rowH + 10;
+          const positive = t.weight >= 0;
+          return (
+            <g key={t.code}>
+              <text x="0" y={y + 14} fontSize="11" fill="var(--text-high, #e5e5e5)">
+                {t.label.length > 24 ? t.label.slice(0, 22) + "..." : t.label}
+              </text>
+              <rect x="150" y={y} width={barMaxW} height="18" rx="4"
+                    fill="var(--border)" opacity="0.3" />
+              <rect x="150" y={y} width={Math.max(barW, 2)} height="18" rx="4"
+                    fill={positive ? "var(--tier1, #2dd4bf)" : "var(--tier3, #ef4444)"} />
+              <text x={150 + barMaxW + 6} y={y + 14} fontSize="11" fill="var(--text-high, #e5e5e5)">
+                {t.contribution.toFixed(1)}%
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function LeadFunnelChart({ stats }) {
+  if (!stats) return null;
+  const tierDistribution = stats.tier_distribution || {};
+  const stages = [
+    { label: "All Customers Scanned", value: stats.total_customers, color: "var(--border)" },
+    { label: "Entered Lead Pipeline", value: stats.total_leads, color: "var(--tier2, #f59e0b)" },
+    { label: "Tier 2 - RM Review", value: (tierDistribution["Tier 2"] || 0) + (tierDistribution["Tier 1"] || 0),
+      color: "var(--tier2, #f59e0b)" },
+    { label: "Tier 1 - Auto-approve Eligible", value: tierDistribution["Tier 1"] || 0,
+      color: "var(--tier1, #2dd4bf)" },
+  ];
+  const maxVal = stages[0].value || 1;
+  const w = 460, barH = 42, gap = 14;
+  const h = stages.length * (barH + gap);
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-low)",
+                    textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 12 }}>
+        Lead Conversion Funnel
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
+        {stages.map((s, i) => {
+          const barW = Math.max((s.value / maxVal) * (w - 20), 4);
+          const xOffset = (w - barW) / 2;
+          const y = i * (barH + gap);
+          const pct = i === 0 ? 100 : Math.round((s.value / stages[0].value) * 100);
+          return (
+            <g key={s.label}>
+              <rect x={xOffset} y={y} width={barW} height={barH} rx="6" fill={s.color} opacity="0.85" />
+              <text x={w / 2} y={y + barH / 2 + 4} textAnchor="middle" fontSize="13"
+                    fontWeight="700" fill="#0b0b0b">
+                {s.value} ({pct}%)
+              </text>
+              <text x={w / 2} y={y - 4} textAnchor="middle" fontSize="11" fill="var(--text-low)">
+                {s.label}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function SegmentationBubbleChart({ segments }) {
+  if (!segments || segments.length === 0) return null;
+  const w = 480, h = 360, pad = 50;
+  const maxIncome = Math.max(...segments.map(s => s.income), 1);
+  const maxEligible = Math.max(...segments.map(s => s.eligible_amount), 1);
+  const tierColor = (t) => t === "Tier 1" ? "var(--tier1, #2dd4bf)"
+                          : t === "Tier 2" ? "var(--tier2, #f59e0b)" : "var(--tier3, #6b7280)";
+  const x = (income) => pad + (income / maxIncome) * (w - pad * 2);
+  const y = (trust) => h - pad - (trust / 100) * (h - pad * 2);
+  const r = (amt) => 5 + (amt / maxEligible) * 22;
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-low)",
+                    textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 12 }}>
+        Customer Segmentation - Income vs Trust Score (bubble = eligible loan amount)
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
+        <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="var(--border)" />
+        <line x1={pad} y1={pad} x2={pad} y2={h - pad} stroke="var(--border)" />
+        <text x={w / 2} y={h - 10} textAnchor="middle" fontSize="10" fill="var(--text-low)">
+          Reconstructed Monthly Income (INR) ->
+        </text>
+        <text x="14" y={h / 2} textAnchor="middle" fontSize="10" fill="var(--text-low)"
+              transform={`rotate(-90 14 ${h / 2})`}>
+          Trust Score ->
+        </text>
+        {segments.map((s) => (
+          <circle key={s.customer_id} cx={x(s.income)} cy={y(s.trust_score)} r={r(s.eligible_amount)}
+                  fill={tierColor(s.tier)} opacity="0.6" stroke={tierColor(s.tier)} strokeWidth="1.5" />
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+/* Waterfall showing Trust Score = Intent*0.4 + IncomeConf*0.3 + Repay*0.3 */
+function TrustScoreWaterfall({ lead }) {
+  if (!lead || lead.trust_score == null) return null;
+  const intentContribution = Math.round(lead.intent_score * 0.4 * 10) / 10;
+  const incomeContribution = Math.round((lead.income_confidence ?? 0) * 0.3 * 10) / 10;
+  const repayContribution = Math.round((lead.repay_score ?? 0) * 0.3 * 10) / 10;
+
+  const steps = [
+    { label: "Intent Score x 0.4", value: intentContribution, color: "var(--tier1, #2dd4bf)" },
+    { label: "Income Confidence x 0.3", value: incomeContribution, color: "var(--tier2, #f59e0b)" },
+    { label: "Repayment Score x 0.3", value: repayContribution, color: "#818cf8" },
+  ];
+
+  const w = 440, h = 200, barW = 70, gap = 40;
+  const maxScale = 100;
+  let running = 0;
+  const bars = steps.map((s, i) => {
+    const startY = h - 30 - (running / maxScale) * (h - 60);
+    running += s.value;
+    const endY = h - 30 - (running / maxScale) * (h - 60);
+    return { ...s, x: 40 + i * (barW + gap), yTop: Math.min(startY, endY), height: Math.abs(startY - endY) };
+  });
+  const totalY = h - 30 - (running / maxScale) * (h - 60);
+
+  return (
+    <div style={{ marginTop: 20 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-low)",
+                    textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 12 }}>
+        How the Trust Score Was Built
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
+        <line x1="20" y1={h - 30} x2={w - 20} y2={h - 30} stroke="var(--border)" />
+        {bars.map((b) => (
+          <g key={b.label}>
+            <rect x={b.x} y={b.yTop} width={barW} height={Math.max(b.height, 2)} rx="4" fill={b.color} />
+            <text x={b.x + barW / 2} y={b.yTop - 6} textAnchor="middle" fontSize="12" fontWeight="700"
+                  fill="var(--text-high, #e5e5e5)">
+              +{b.value}
+            </text>
+            <text x={b.x + barW / 2} y={h - 14} textAnchor="middle" fontSize="10" fill="var(--text-low)">
+              {b.label}
+            </text>
+          </g>
+        ))}
+        <rect x={40 + steps.length * (barW + gap)} y={totalY} width={barW}
+              height={Math.max(h - 30 - totalY, 2)} rx="4" fill="var(--text-high, #e5e5e5)" />
+        <text x={40 + steps.length * (barW + gap) + barW / 2} y={totalY - 6} textAnchor="middle"
+              fontSize="13" fontWeight="700" fill="var(--text-high, #e5e5e5)">
+          {lead.trust_score}
+        </text>
+        <text x={40 + steps.length * (barW + gap) + barW / 2} y={h - 14} textAnchor="middle"
+              fontSize="10" fill="var(--text-low)">
+          Trust Score
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+function TrustGauge({ score, size = 160 }) {
+  if (score == null) return null;
+  const clamped = Math.max(0, Math.min(100, score));
+  const angle = -90 + (clamped / 100) * 180;
+  const color = clamped >= 70 ? "var(--tier1, #2dd4bf)"
+              : clamped >= 45 ? "var(--tier2, #f59e0b)"
+              : "var(--tier3, #ef4444)";
+  const r = size / 2 - 10;
+  const cx = size / 2, cy = size / 2;
+  const toXY = (deg) => {
+    const rad = (deg * Math.PI) / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  };
+  const start = toXY(-180), end = toXY(0);
+  const needleEnd = toXY(angle);
+
+  return (
+    <svg viewBox={`0 0 ${size} ${size / 2 + 20}`} width={size} height={size / 2 + 20}>
+      <path d={`M ${start.x} ${start.y} A ${r} ${r} 0 0 1 ${end.x} ${end.y}`}
+            fill="none" stroke="var(--border)" strokeWidth="14" strokeLinecap="round" />
+      <path d={`M ${start.x} ${start.y} A ${r} ${r} 0 0 1 ${needleEnd.x} ${needleEnd.y}`}
+            fill="none" stroke={color} strokeWidth="14" strokeLinecap="round" />
+      <circle cx={cx} cy={cy} r="5" fill="var(--text-high, #e5e5e5)" />
+      <line x1={cx} y1={cy} x2={needleEnd.x} y2={needleEnd.y} stroke="var(--text-high, #e5e5e5)" strokeWidth="2" />
+      <text x={cx} y={cy - 20} textAnchor="middle" fontSize="22" fontWeight="800" fill={color}>
+        {Math.round(clamped)}
+      </text>
+      <text x={cx} y={cy - 2} textAnchor="middle" fontSize="10" fill="var(--text-low)">
+        Financial Health
+      </text>
+    </svg>
+  );
+}
+
 function LeadFileTree({ customer, lead, income_breakdown, capacity, transactions }) {
   const [open, setOpen] = useState({ triggers: true, income: true });
   const toggle = (k) => setOpen(o => ({ ...o, [k]: !o[k] }));
@@ -1451,6 +1727,8 @@ function CompareLeadsWorkspace({ leads, token, onUnauthorized }) {
       {loadingA || loadingB ? (
         <div style={{ padding: 60, textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }}></div></div>
       ) : leadA && leadB ? (
+        <>
+        <ComparisonRadarChart leadA={leadA} leadB={leadB} />
         <div className="compare-grid" style={{ background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 16, padding: '24px 30px' }}>
           <div className="compare-head" style={{ borderBottom: '2px solid var(--border)', paddingBottom: 10, fontWeight: 'bold', color: 'var(--text-hi)' }}>{leadA.customer.name}</div>
           <div className="compare-head center" style={{ borderBottom: '2px solid var(--border)', paddingBottom: 10, color: 'var(--text-low)' }}>Category</div>
@@ -1478,6 +1756,7 @@ function CompareLeadsWorkspace({ leads, token, onUnauthorized }) {
             );
           })}
         </div>
+        </>
       ) : (
         <div style={{ color: 'var(--text-low)', fontStyle: 'italic', textAlign: 'center', padding: 40 }}>Please select two valid leads to begin.</div>
       )}
@@ -1531,6 +1810,327 @@ function PulseLine({intensity = 50, color = 'var(--teal)', width = 200, height =
         {animate && <animate attributeName="stroke-dashoffset" from="220" to="0" dur="1.4s" begin="0s" />}
       </path>
     </svg>
+  );
+}
+
+function CashflowSankey({ breakdown }) {
+  if (!breakdown || !breakdown.buckets) return null;
+  const buckets = Object.entries(breakdown.buckets).filter(([, value]) => value > 0);
+  if (buckets.length === 0) return null;
+  const w = 680, h = Math.max(260, buckets.length * 54 + 70);
+  const sourceX = 40, sourceY = h / 2 - 38, sourceW = 140, sourceH = 76;
+  const targetX = 470, targetW = 150;
+  const maxBucket = Math.max(...buckets.map(([, value]) => value), 1);
+  const colors = ["var(--teal)", "var(--amber)", "var(--indigo)", "var(--red)", "var(--violet)"];
+
+  return (
+    <div style={{ background: "var(--surface-3)", border: "1px solid var(--border-soft)", borderRadius: 12, padding: "16px 20px", marginTop: 18 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-low)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 12 }}>
+        Cash Flow Sankey - Income to Spend Buckets
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
+        <rect x={sourceX} y={sourceY} width={sourceW} height={sourceH} rx="8" fill="rgba(22,194,174,0.16)" stroke="var(--teal)" />
+        <text x={sourceX + sourceW / 2} y={sourceY + 32} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--teal)">Total Inflow</text>
+        <text x={sourceX + sourceW / 2} y={sourceY + 54} textAnchor="middle" fontSize="13" fontWeight="800" fill="var(--text-hi)">{fmtINR(breakdown.total_income)}</text>
+        {buckets.map(([name, value], i) => {
+          const y = 32 + i * 54;
+          const strokeW = 6 + (value / maxBucket) * 22;
+          const color = colors[i % colors.length];
+          return (
+            <g key={name}>
+              <path d={`M${sourceX + sourceW},${sourceY + sourceH / 2} C300,${sourceY + sourceH / 2} 330,${y + 22} ${targetX},${y + 22}`}
+                    fill="none" stroke={color} strokeWidth={strokeW} strokeLinecap="round" opacity="0.55" />
+              <rect x={targetX} y={y} width={targetW} height="44" rx="7" fill="var(--surface)" stroke={color} />
+              <text x={targetX + 12} y={y + 17} fontSize="11" fontWeight="700" fill="var(--text-hi)">{name}</text>
+              <text x={targetX + 12} y={y + 34} fontSize="11" fill="var(--text-mid)">{fmtINR(value)}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function TransactionCalendarHeatmap({ transactions }) {
+  if (!transactions || transactions.length === 0) return null;
+  const days = 90, cell = 13, gap = 3, cols = 15, rows = 6;
+  const today = new Date();
+  const byDay = Array.from({ length: days }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (days - 1 - i));
+    return { date: d, amount: 0, count: 0 };
+  });
+  transactions.forEach(t => {
+    const txDate = new Date(t.timestamp);
+    const diff = Math.floor((today.getTime() - txDate.getTime()) / 864e5);
+    if (diff >= 0 && diff < days) {
+      const idx = days - 1 - diff;
+      byDay[idx].amount += Math.abs(Number(t.amount) || 0);
+      byDay[idx].count += 1;
+    }
+  });
+  const maxAmount = Math.max(...byDay.map(d => d.amount), 1);
+  const colorFor = (amount) => {
+    if (!amount) return "var(--surface)";
+    const intensity = 0.2 + Math.min(0.8, amount / maxAmount * 0.8);
+    return `rgba(22,194,174,${intensity})`;
+  };
+
+  return (
+    <div style={{ background: "var(--surface-3)", border: "1px solid var(--border-soft)", borderRadius: 12, padding: "16px 20px", marginTop: 18, marginBottom: 20 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-low)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 12 }}>
+        Calendar Heatmap of Transactions
+      </div>
+      <svg viewBox={`0 0 ${cols * (cell + gap) + 70} ${rows * (cell + gap) + 34}`} width="100%" height="132">
+        {byDay.map((d, i) => {
+          const x = (i % cols) * (cell + gap) + 4;
+          const y = Math.floor(i / cols) * (cell + gap) + 4;
+          return (
+            <rect key={i} x={x} y={y} width={cell} height={cell} rx="3" fill={colorFor(d.amount)}
+                  stroke="var(--border-soft)" title={`${d.date.toLocaleDateString("en-IN")} - ${d.count} txns - ${fmtINR(d.amount)}`} />
+          );
+        })}
+        <text x="4" y={rows * (cell + gap) + 24} fontSize="10" fill="var(--text-low)">Oldest</text>
+        <text x={cols * (cell + gap) - 6} y={rows * (cell + gap) + 24} textAnchor="end" fontSize="10" fill="var(--text-low)">Latest</text>
+        <text x={cols * (cell + gap) + 20} y="18" fontSize="10" fill="var(--text-low)">Volume</text>
+        <rect x={cols * (cell + gap) + 20} y="30" width="12" height="12" rx="3" fill="rgba(22,194,174,0.25)" />
+        <rect x={cols * (cell + gap) + 38} y="30" width="12" height="12" rx="3" fill="rgba(22,194,174,0.65)" />
+        <rect x={cols * (cell + gap) + 56} y="30" width="12" height="12" rx="3" fill="rgba(22,194,174,1)" />
+      </svg>
+    </div>
+  );
+}
+
+function BehaviorRadarChart({ lead, customer }) {
+  if (!lead) return null;
+  const triggerScore = Math.min(100, (lead.triggers_fired?.length || 0) * 16);
+  const metrics = [
+    ["Intent", lead.intent_score || 0],
+    ["Trust", lead.trust_score || 0],
+    ["Income", lead.income_confidence ?? Math.max(0, 100 - (lead.income_accuracy_pct || 0))],
+    ["Repay", lead.repay_score ?? 0],
+    ["Capacity", lead.capacity ? Math.min(100, (lead.capacity.safe_emi_ceiling / Math.max(lead.capacity.reconstructed_income, 1)) * 220) : 0],
+    ["Signals", triggerScore],
+  ];
+  const size = 260, cx = 130, cy = 130, r = 92;
+  const point = (i, value = 100) => {
+    const angle = -Math.PI / 2 + (Math.PI * 2 * i) / metrics.length;
+    const rr = r * (value / 100);
+    return [cx + rr * Math.cos(angle), cy + rr * Math.sin(angle)];
+  };
+  const path = metrics.map(([, value], i) => point(i, value).join(",")).join(" ");
+
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 12, padding: 18, marginTop: 20 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-low)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 10 }}>
+        Behavioral Radar Profile
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 280px) minmax(0, 1fr)", gap: 18, alignItems: "center" }}>
+        <svg viewBox={`0 0 ${size} ${size}`} width="100%" height={size}>
+          {[25, 50, 75, 100].map(level => (
+            <polygon key={level} points={metrics.map((_, i) => point(i, level).join(",")).join(" ")}
+                     fill="none" stroke="var(--border-soft)" strokeWidth="1" />
+          ))}
+          {metrics.map((m, i) => {
+            const [x, y] = point(i, 100);
+            const [lx, ly] = point(i, 114);
+            return (
+              <g key={m[0]}>
+                <line x1={cx} y1={cy} x2={x} y2={y} stroke="var(--border-soft)" />
+                <text x={lx} y={ly} textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--text-mid)">{m[0]}</text>
+              </g>
+            );
+          })}
+          <polygon points={path} fill="rgba(22,194,174,0.25)" stroke="var(--teal)" strokeWidth="2" />
+          {metrics.map(([, value], i) => {
+            const [x, y] = point(i, value);
+            return <circle key={i} cx={x} cy={y} r="4" fill="var(--teal)" />;
+          })}
+        </svg>
+        <div style={{ fontSize: 12.5, color: "var(--text-mid)", lineHeight: 1.7 }}>
+          <b style={{ color: "var(--text-hi)" }}>{customer?.employment_type || "Customer"}</b> profile with {lead.triggers_fired?.length || 0} active behavioral signal{(lead.triggers_fired?.length || 0) === 1 ? "" : "s"}.
+          <br />Radar balances intent, risk, income confidence, repayment strength, capacity, and trigger density.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RoiWaterfallChart({ roi }) {
+  if (!roi) return null;
+  const assessment = roi.total_customers * (roi.cost_assumptions?.cost_per_assessment || 0);
+  const outreach = roi.total_leads * (roi.cost_assumptions?.cost_per_outreach || 0);
+  const steps = [
+    { label: "Expected Revenue", value: roi.estimated_revenue || 0, type: "gain" },
+    { label: "Assessment Cost", value: -assessment, type: "cost" },
+    { label: "Outreach Cost", value: -outreach, type: "cost" },
+    { label: "Net Profit", value: roi.net_profit || 0, type: "total" },
+  ];
+  const w = 640, h = 260, barW = 95, gap = 38;
+  const maxVal = Math.max(...steps.map(s => Math.abs(s.value)), 1);
+  const yBase = h - 36;
+  const scale = (h - 74) / maxVal;
+  let running = 0;
+
+  return (
+    <div style={{ background: "var(--surface-3)", border: "1px solid var(--border-soft)", borderRadius: 12, padding: "16px 20px", marginBottom: 24 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-low)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 12 }}>
+        ROI Waterfall - Revenue vs Cost vs Net Profit
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
+        <line x1="20" y1={yBase} x2={w - 20} y2={yBase} stroke="var(--border)" />
+        {steps.map((s, i) => {
+          const x = 46 + i * (barW + gap);
+          const start = s.type === "total" ? 0 : running;
+          const end = s.type === "total" ? s.value : running + s.value;
+          if (s.type !== "total") running = end;
+          const y1 = yBase - start * scale;
+          const y2 = yBase - end * scale;
+          const top = Math.min(y1, y2);
+          const height = Math.max(3, Math.abs(y2 - y1));
+          const color = s.value < 0 ? "var(--red)" : s.type === "total" ? "var(--teal)" : "var(--indigo)";
+          return (
+            <g key={s.label}>
+              <rect x={x} y={top} width={barW} height={height} rx="5" fill={color} opacity="0.86" />
+              <text x={x + barW / 2} y={top - 7} textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--text-hi)">{fmtINR(Math.abs(s.value))}</text>
+              <text x={x + barW / 2} y={h - 14} textAnchor="middle" fontSize="10" fill="var(--text-mid)">{s.label}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function FraudRiskScatter({ anomalyData }) {
+  const points = anomalyData?.all_leads || [];
+  if (!points.length) return null;
+  const w = 560, h = 300, pad = 44;
+  const x = (trust) => pad + (Math.max(0, Math.min(100, trust || 0)) / 100) * (w - pad * 2);
+  const y = (risk) => h - pad - (Math.max(0, Math.min(100, risk || 0)) / 100) * (h - pad * 2);
+
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 12, padding: 18, marginBottom: 24 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-low)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 12 }}>
+        Fraud / Anomaly Risk Scatter
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
+        <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="var(--border)" />
+        <line x1={pad} y1={pad} x2={pad} y2={h - pad} stroke="var(--border)" />
+        <text x={w / 2} y={h - 8} textAnchor="middle" fontSize="10" fill="var(--text-low)">Trust Score -></text>
+        <text x="14" y={h / 2} textAnchor="middle" fontSize="10" fill="var(--text-low)" transform={`rotate(-90 14 ${h / 2})`}>Fraud Risk -></text>
+        {points.map(p => {
+          const flagged = Number(p.is_anomalous) === 1 || p.is_anomalous === true;
+          return (
+            <circle key={p.customer_id} cx={x(p.trust_score)} cy={y(p.fraud_risk_score)} r={flagged ? 7 : 4}
+                    fill={flagged ? "var(--red)" : "var(--teal)"} opacity={flagged ? 0.9 : 0.45}
+                    stroke={flagged ? "#fff" : "none"} strokeWidth="1.5" />
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function OutreachTimeline({ leads }) {
+  if (!leads || leads.length === 0) return null;
+  const upcoming = [...leads]
+    .filter(l => l.outreach_window_start && l.outreach_window_end)
+    .sort((a, b) => new Date(a.outreach_window_start) - new Date(b.outreach_window_start))
+    .slice(0, 8);
+  if (upcoming.length === 0) return null;
+  const now = Date.now();
+
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 12, padding: 18, maxWidth: 760 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-low)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 14 }}>
+        Outreach Window Timeline
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {upcoming.map(l => {
+          const start = new Date(l.outreach_window_start).getTime();
+          const end = new Date(l.outreach_window_end).getTime();
+          const active = now >= start && now <= end;
+          return (
+            <div key={l.customer_id} style={{ display: "grid", gridTemplateColumns: "150px minmax(0, 1fr) 120px", gap: 12, alignItems: "center", fontSize: 12 }}>
+              <div style={{ color: "var(--text-hi)", fontWeight: 700 }}>{l.name || l.customer_id}</div>
+              <div style={{ height: 8, background: "var(--surface-3)", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ width: active ? "100%" : "62%", height: "100%", background: active ? "var(--teal)" : "var(--amber)" }}></div>
+              </div>
+              <div style={{ color: active ? "var(--teal)" : "var(--text-low)", textAlign: "right" }}>{fmtWindowEnd(l.outreach_window_end)}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AuditTrailTimeline({ events }) {
+  if (!events || events.length === 0) return null;
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 12, padding: 18, marginTop: 24 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-low)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 14 }}>
+        Audit Trail Timeline
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {events.slice(0, 18).map((e, i) => (
+          <div key={`${e.event_type}-${i}`} style={{ display: "grid", gridTemplateColumns: "92px 1fr", gap: 14, alignItems: "start" }}>
+            <div style={{ fontSize: 11, color: "var(--text-low)", textAlign: "right" }}>{e.occurred_at ? new Date(e.occurred_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "N/A"}</div>
+            <div style={{ borderLeft: "2px solid var(--border)", paddingLeft: 14, paddingBottom: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: e.event_type === "THRESHOLD" ? "var(--amber)" : "var(--teal)" }}>{e.event_type}</div>
+              <div style={{ fontSize: 12.5, color: "var(--text-mid)", lineHeight: 1.5 }}>
+                <b style={{ color: "var(--text-hi)" }}>{e.actor || "System"}</b> {e.detail || "updated"} {e.subject ? `- ${e.subject}` : ""}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ComparisonRadarChart({ leadA, leadB }) {
+  if (!leadA || !leadB) return null;
+  const valuesFor = (bundle) => {
+    const l = bundle.lead || {};
+    return [
+      ["Trust", l.trust_score || 0],
+      ["Intent", l.intent_score || 0],
+      ["Income", l.income_confidence ?? Math.max(0, 100 - (l.income_accuracy_pct || 0))],
+      ["Repay", l.repay_score ?? 0],
+      ["Capacity", bundle.capacity ? Math.min(100, (bundle.capacity.recommended_eligible_amount / 2000000) * 100) : 0],
+    ];
+  };
+  const a = valuesFor(leadA);
+  const b = valuesFor(leadB);
+  const size = 300, cx = 150, cy = 150, r = 105;
+  const point = (i, value) => {
+    const angle = -Math.PI / 2 + (Math.PI * 2 * i) / a.length;
+    const rr = r * (value / 100);
+    return [cx + rr * Math.cos(angle), cy + rr * Math.sin(angle)];
+  };
+  const pathFor = (items) => items.map(([, value], i) => point(i, value).join(",")).join(" ");
+
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 12, padding: 18, marginBottom: 20 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-low)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 12 }}>
+        Side-by-Side Lead Comparison Radar
+      </div>
+      <svg viewBox={`0 0 ${size} ${size}`} width="100%" height={size} style={{ maxWidth: 360, display: "block", margin: "0 auto" }}>
+        {[25, 50, 75, 100].map(level => (
+          <polygon key={level} points={a.map((_, i) => point(i, level).join(",")).join(" ")} fill="none" stroke="var(--border-soft)" />
+        ))}
+        {a.map(([label], i) => {
+          const [x, y] = point(i, 112);
+          return <text key={label} x={x} y={y} textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--text-mid)">{label}</text>;
+        })}
+        <polygon points={pathFor(a)} fill="rgba(22,194,174,0.22)" stroke="var(--teal)" strokeWidth="2" />
+        <polygon points={pathFor(b)} fill="rgba(245,158,11,0.18)" stroke="var(--amber)" strokeWidth="2" />
+        <text x="20" y="24" fontSize="11" fill="var(--teal)" fontWeight="700">{leadA.customer?.name}</text>
+        <text x="20" y="42" fontSize="11" fill="var(--amber)" fontWeight="700">{leadB.customer?.name}</text>
+      </svg>
+    </div>
   );
 }
 
@@ -1708,6 +2308,7 @@ function DetailPanel({customerId, token, onUnauthorized}) {
   const customer = data?.customer;
   const transactions = data?.transactions || [];
   const income_breakdown = data?.income_breakdown;
+  const cashflow_breakdown = data?.cashflow_breakdown;
 
   useEffect(() => {
     if (!customerId || !token) return;
@@ -1802,6 +2403,8 @@ function DetailPanel({customerId, token, onUnauthorized}) {
           </button>
         </div>
         <div className="score-ring-wrap">
+          <TrustGauge score={lead.trust_score} />
+          <BehaviorRadarChart lead={lead} customer={customer} />
           <ScoreRing value={lead.intent_score} label="Intent" color="var(--amber)" />
           <ScoreRing value={lead.trust_score} label="Trust" color="var(--teal)" />
         </div>
@@ -1847,6 +2450,9 @@ function DetailPanel({customerId, token, onUnauthorized}) {
       </div>
 
       <div className="section-title"><span className="dot"></span>CLARITY — Income Reconstruction</div>
+      <TriggerContributionChart triggers={lead.triggers_fired} />
+      <TrustScoreWaterfall lead={lead} />
+
       <div className="income-panel">
         <div className="income-figure">
           <div className="lbl">Synthetic Monthly Income</div>
@@ -1972,6 +2578,7 @@ function DetailPanel({customerId, token, onUnauthorized}) {
       </div>
 
       <TransactionSpikeChart dailyVolumes={dailyVolumes} triggerDays={triggerDays} />
+      <TransactionCalendarHeatmap transactions={transactions} />
 
       <div className="section-title"><span className="dot"></span>Recent Transaction Stream ({transactions.length} total)</div>
       <table className="txn-table">
@@ -1990,6 +2597,8 @@ function DetailPanel({customerId, token, onUnauthorized}) {
         </tbody>
       </table>
 
+      <CashflowSankey breakdown={cashflow_breakdown} />
+
       <AINarrativeCard customerId={customerId} token={token} />
     </div>
   );
@@ -2005,6 +2614,9 @@ function GovernanceDashboard({leads, stats, token, user, onUnauthorized}) {
   const [sandboxData, setSandboxData] = useState(null);
   const [roiData, setRoiData] = useState(null);
   const [sentryData, setSentryData] = useState(null);
+  const [geoCities, setGeoCities] = useState([]);
+  const [segmentationData, setSegmentationData] = useState([]);
+  const [auditTrailData, setAuditTrailData] = useState([]);
   const [askQuestion, setAskQuestion] = useState('');
   const [askAnswer, setAskAnswer] = useState(null);
   const [askLoading, setAskLoading] = useState(false);
@@ -2085,8 +2697,10 @@ function GovernanceDashboard({leads, stats, token, user, onUnauthorized}) {
     else if (tab === 'roi') endpoint = '/api/governance/roi';
     else if (tab === 'sentry') endpoint = '/api/governance/anomalies';
 
+    const authHeaders = { 'Authorization': `Bearer ${token}` };
+
     fetch(`${API_BASE}${endpoint}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: authHeaders
     })
       .then(r => {
         if (r.status === 401) { onUnauthorized(); throw new Error('Session expired'); }
@@ -2106,7 +2720,37 @@ function GovernanceDashboard({leads, stats, token, user, onUnauthorized}) {
         setError(e.message);
         setLoading(false);
       });
-  }, [token, onUnauthorized]);
+
+    if (tab === 'fairness') {
+      fetch(`${API_BASE}/api/governance/geo-distribution`, { headers: authHeaders })
+        .then(r => {
+          if (r.status === 401) { onUnauthorized(); throw new Error('Session expired'); }
+          if (!r.ok) throw new Error('Failed to load geo distribution');
+          return r.json();
+        })
+        .then(setGeoCities)
+        .catch(() => setGeoCities([]));
+      fetch(`${API_BASE}/api/leads/segmentation`, { headers: authHeaders })
+        .then(r => {
+          if (r.status === 401) { onUnauthorized(); throw new Error('Session expired'); }
+          if (!r.ok) throw new Error('Failed to load lead segmentation');
+          return r.json();
+        })
+        .then(setSegmentationData)
+        .catch(() => setSegmentationData([]));
+    }
+
+    if (tab === 'compliance' && user?.role === 'admin') {
+      fetch(`${API_BASE}/api/governance/audit-trail`, { headers: authHeaders })
+        .then(r => {
+          if (r.status === 401) { onUnauthorized(); throw new Error('Session expired'); }
+          if (!r.ok) throw new Error('Failed to load audit trail');
+          return r.json();
+        })
+        .then(setAuditTrailData)
+        .catch(() => setAuditTrailData([]));
+    }
+  }, [token, onUnauthorized, user]);
 
   const submitAsk = () => {
     if (!askQuestion.trim() || askLoading) return;
@@ -2293,6 +2937,19 @@ function GovernanceDashboard({leads, stats, token, user, onUnauthorized}) {
               </div>
             </div>
           </div>
+
+          <div style={{display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 24, marginTop: 28, alignItems: 'start'}}>
+            <div style={{background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 18}}>
+              <FairnessBarChart segments={segments} />
+            </div>
+            <div style={{background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 18}}>
+              <GeoDistributionMap cities={geoCities} />
+            </div>
+          </div>
+
+          <div style={{background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 18, marginTop: 24}}>
+            <SegmentationBubbleChart segments={segmentationData} />
+          </div>
         </div>
       );
     }
@@ -2361,6 +3018,8 @@ function GovernanceDashboard({leads, stats, token, user, onUnauthorized}) {
               </div>
             </div>
           </div>
+
+          {user?.role === 'admin' && <AuditTrailTimeline events={auditTrailData} />}
         </div>
       );
     }
@@ -2447,6 +3106,8 @@ function GovernanceDashboard({leads, stats, token, user, onUnauthorized}) {
               netProfit={net_profit}
             />
           </div>
+
+          <RoiWaterfallChart roi={roiData} />
 
           <h4 style={{margin: '0 0 10px'}}>ROI Breakdown by Customer Segment</h4>
           <table className="txn-table" style={{width: '100%'}}>
@@ -2547,6 +3208,7 @@ function GovernanceDashboard({leads, stats, token, user, onUnauthorized}) {
                   No anomalous leads detected in current dataset. Regenerate data or SENTRY scores may not have run yet.
                 </div>
               )}
+              <FraudRiskScatter anomalyData={data} />
             </>
           )}
         </div>
@@ -2790,6 +3452,14 @@ function LeadsView({stats, leads, allLeads = [], selected, setSelected, loading,
   return (
     <>
       <KPIStrip stats={stats} />
+      <div style={{padding: '18px 32px 0', borderBottom: '1px solid var(--border-soft)', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.2fr)', gap: 20}}>
+        <div style={{background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 18}}>
+          <LeadFunnelChart stats={stats} />
+        </div>
+        <div style={{background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 18}}>
+          <OutreachTimeline leads={allLeads.length ? allLeads : leads} />
+        </div>
+      </div>
       <div className="body-grid">
         <div className="queue">
           <div className="queue-controls">

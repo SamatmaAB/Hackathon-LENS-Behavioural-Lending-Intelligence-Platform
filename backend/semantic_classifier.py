@@ -15,6 +15,7 @@ import numpy as np
 from functools import lru_cache
 
 _model = None
+_model_load_failed = False
 _anchor_embeddings = {}
 
 CATEGORY_ANCHORS = {
@@ -43,10 +44,14 @@ SIMILARITY_THRESHOLD = 0.42
 
 
 def _load_model():
-    """Lazy-load the sentence transformer. Returns None on failure."""
-    global _model, _anchor_embeddings
+    """Lazy-load the sentence transformer. Returns None on failure.
+    Only attempts the load once per process - subsequent calls after a
+    failure return None immediately instead of retrying."""
+    global _model, _anchor_embeddings, _model_load_failed
     if _model is not None:
         return _model
+    if _model_load_failed:
+        return None
     try:
         from sentence_transformers import SentenceTransformer
         _model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -57,7 +62,7 @@ def _load_model():
         return _model
     except Exception as e:
         print(f"[SENTRY] Could not load sentence-transformer model: {e}. Keyword fallback will be used.")
-        _model = None
+        _model_load_failed = True
         return None
 
 

@@ -38,9 +38,9 @@ def format_utc_datetime(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%S.%f") + "+00:00"
 
 try:
-    from backend import data_gen, db, engine, governance
+    from backend import data_gen, db, engine, governance, geo
 except ImportError:
-    import data_gen, db, engine, governance  # type: ignore[no-redef]
+    import data_gen, db, engine, governance, geo  # type: ignore[no-redef]
 
 
 from backend import data_gen, db, engine
@@ -55,6 +55,11 @@ try:
     from backend.ai_query import run_governance_query as _run_gov_query
 except ImportError:
     _run_gov_query = None
+
+try:
+    from backend.capacity import compute_capacity
+except ImportError:
+    from capacity import compute_capacity  # type: ignore[no-redef]
 
 BASE_DIR = os.path.dirname(__file__)
 DEFAULT_DB_PATH = os.path.join(tempfile.gettempdir(), "lens.db") if os.getenv("VERCEL") else os.path.join(BASE_DIR, "lens.db")
@@ -230,23 +235,6 @@ def seed_default_users():
             )
     conn.commit()
     conn.close()
-
-
-@app.on_event("startup")
-def ensure_schema_and_data():
-    db_already_exists = db_exists()
-    init_database()
-    seed_default_users()
-    if not db_already_exists:
-        conn = get_conn()
-        customer_count = db.scalar(conn, "SELECT COUNT(*) FROM customers")
-        conn.close()
-        if customer_count == 0:
-            data_gen.build_current_database(n_customers=150, seed=42, db_path=DB_PATH)
-            engine.run_engine(DB_PATH)
-
-
-
 
 
 def public_user(row):
@@ -789,6 +777,46 @@ def list_leads(tier: str = None, search: str = None, sort: str = "trust_score",
     return rows
 
 
+@app.get("/api/leads/segmentation")
+def leads_segmentation(user=Depends(require_user)):
+    """
+    Portfolio-level view for the segmentation bubble chart:
+    income (x) vs trust_score (y) vs recommended eligible loan amount (bubble size)
+    vs tier (color), for every current lead.
+    """
+    conn = get_conn()
+    try:
+        lead_rows = db.rows(
+            conn,
+            """SELECT l.customer_id, l.synthetic_income, l.trust_score, l.tier,
+                      l.predicted_loan_type, c.declared_income, c.employment_type
+               FROM leads l JOIN customers c ON c.customer_id = l.customer_id"""
+        )
+        result = []
+        for lr in lead_rows:
+            txns = db.rows(conn, "SELECT * FROM transactions WHERE customer_id=? ORDER BY timestamp",
+                           (lr["customer_id"],))
+            capacity_res = compute_capacity(
+                customer_id=lr["customer_id"],
+                transactions=txns,
+                reconstructed_income=lr["synthetic_income"],
+                declared_income=lr["declared_income"],
+                predicted_loan_type=lr["predicted_loan_type"],
+                repay_score=lr["trust_score"],
+            )
+            result.append({
+                "customer_id": lr["customer_id"],
+                "income": lr["synthetic_income"],
+                "trust_score": lr["trust_score"],
+                "tier": lr["tier"],
+                "eligible_amount": capacity_res.recommended_eligible_amount,
+                "employment_type": lr["employment_type"],
+            })
+        return result
+    finally:
+        conn.close()
+
+
 @app.get("/api/leads/{customer_id}")
 def lead_detail(customer_id: str, user=Depends(require_user)):
     conn = get_conn()
@@ -844,12 +872,17 @@ def lead_detail(customer_id: str, user=Depends(require_user)):
 
         # recompute the live income breakdown so the UI can show the method/clusters
         result["income_breakdown"] = engine.reconstruct_income(cust, txns)
+        result["cashflow_breakdown"] = engine.build_cashflow_breakdown(txns)
 
         if scored:
             # Wires capacity: CapacityResult to lead detail response
             result["capacity"] = scored.get("capacity")
             lead["capacity"] = scored.get("capacity")
             lead["tier_action_label"] = scored.get("tier_action_label")
+            # Expose the TRUST sub-scores so the frontend can render a waterfall
+            # breakdown of exactly how the Trust Score was assembled.
+            lead["income_confidence"] = scored.get("income_confidence")
+            lead["repay_score"] = scored.get("repay_score")
 
     return result
 
@@ -951,6 +984,18 @@ def get_evaluation_report(user=Depends(require_user)):
         logger = logging.getLogger("lens.app")
         logger.error(f"Error in /api/governance/evaluation: {e}", exc_info=True)
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@app.get("/api/governance/geo-distribution")
+def get_geo_distribution(user=Depends(require_user)):
+    """
+    Returns city-level lead concentration for the illustrative governance map.
+    """
+    conn = get_conn()
+    try:
+        return geo.build_geo_distribution(conn, db)
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1060,6 +1105,7 @@ def get_anomaly_report(user=Depends(require_user)):
         "total_leads": all_leads_count,
         "flagged_count": len(flagged),
         "flagged_leads": flagged,
+        "all_leads": [dict(r) for r in rows],
     }
 
 
@@ -1211,6 +1257,47 @@ def list_access_logs(user=Depends(require_admin)):
     rows = db.rows(conn, q)
     conn.close()
     return rows
+
+
+@app.get("/api/governance/audit-trail")
+def get_audit_trail(user=Depends(require_admin)):
+    conn = get_conn()
+    try:
+        access_events = db.rows(
+            conn,
+            """
+            SELECT 'ACCESS' AS event_type,
+                   al.accessed_at AS occurred_at,
+                   u.name AS actor,
+                   COALESCE(c.name, al.customer_id) AS subject,
+                   al.action AS detail
+            FROM access_logs al
+            LEFT JOIN users u ON al.user_id = u.user_id
+            LEFT JOIN customers c ON al.customer_id = c.customer_id
+            ORDER BY al.accessed_at DESC
+            LIMIT 80
+            """,
+        )
+        threshold_events = db.rows(
+            conn,
+            """
+            SELECT 'THRESHOLD' AS event_type,
+                   tr.updated_at AS occurred_at,
+                   u.name AS actor,
+                   CAST(tr.proposed_threshold AS TEXT) AS subject,
+                   tr.status AS detail
+            FROM threshold_requests tr
+            LEFT JOIN users u ON tr.proposer_id = u.user_id
+            ORDER BY tr.updated_at DESC
+            LIMIT 40
+            """,
+        )
+    finally:
+        conn.close()
+
+    events = [dict(r) for r in access_events] + [dict(r) for r in threshold_events]
+    events.sort(key=lambda e: e.get("occurred_at") or "", reverse=True)
+    return events[:100]
 
 
 @app.post("/api/governance/threshold-change-request")

@@ -302,6 +302,40 @@ def reconstruct_income(customer, txns):
     }
 
 
+def build_cashflow_breakdown(txns):
+    """Build explainable income-to-spend buckets for the detail cashflow chart."""
+    credits = [t for t in txns if t["type"] in ("UPI_CREDIT", "SALARY_CREDIT")]
+    total_income = sum(float(t["amount"]) for t in credits)
+    buckets = {
+        "Existing EMIs": 0.0,
+        "Utilities": 0.0,
+        "Self Transfers": 0.0,
+        "Trigger Expenses": 0.0,
+        "Other Outflows": 0.0,
+    }
+
+    for t in txns:
+        if t["type"] not in ("UPI_DEBIT", "IMPS", "NEFT", "EMI_DEBIT", "BILL_PAY"):
+            continue
+        amount = float(t["amount"])
+        counterparty = t.get("counterparty") or ""
+        if t["type"] == "EMI_DEBIT":
+            buckets["Existing EMIs"] += amount
+        elif "Self -" in counterparty:
+            buckets["Self Transfers"] += amount
+        elif counterparty in UTILITY_PAYEES:
+            buckets["Utilities"] += amount
+        elif _classify_txn_category(counterparty).get("category"):
+            buckets["Trigger Expenses"] += amount
+        else:
+            buckets["Other Outflows"] += amount
+
+    return {
+        "total_income": round(total_income, 2),
+        "buckets": {name: round(value, 2) for name, value in buckets.items() if value > 0},
+    }
+
+
 def predict_loan_type(fired_keys, customer_id="", customer=None, use_ml=True):
     """MATCH: predict loan type, trying ML (XGBoost+SHAP) first, then
     falling back to the deterministic rule engine. Returns (type, conf, source, ml_detail)."""
