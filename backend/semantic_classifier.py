@@ -12,6 +12,7 @@ This gives the engine genuine generalisation beyond the synthetic vocabulary
 while keeping keyword matching as the safety-net fallback for auditability.
 """
 import numpy as np
+from functools import lru_cache
 
 _model = None
 _anchor_embeddings = {}
@@ -60,17 +61,15 @@ def _load_model():
         return None
 
 
-def classify_counterparty(counterparty_name: str) -> dict:
+@lru_cache(maxsize=512)
+def _classify_counterparty_cached(counterparty_name: str) -> tuple:
     """
-    Returns {"category": str|None, "confidence": float, "method": "semantic"|"unavailable"}
-    Falls back to None if nothing clears the threshold or model is unavailable.
+    Cached inner classifier. Returning a tuple avoids sharing mutable dicts
+    across callers while still skipping repeated embedding work.
     """
-    if not counterparty_name or not counterparty_name.strip():
-        return {"category": None, "confidence": 0.0, "method": "unavailable"}
-
     model = _load_model()
     if model is None:
-        return {"category": None, "confidence": 0.0, "method": "unavailable"}
+        return (None, 0.0, "unavailable")
 
     try:
         query_embedding = model.encode([counterparty_name], normalize_embeddings=True)[0]
@@ -84,10 +83,23 @@ def classify_counterparty(counterparty_name: str) -> dict:
                 best_category = category
 
         if best_score >= SIMILARITY_THRESHOLD:
-            return {"category": best_category, "confidence": round(best_score, 3), "method": "semantic"}
+            return (best_category, round(best_score, 3), "semantic")
 
-        return {"category": None, "confidence": round(best_score, 3), "method": "semantic"}
+        return (None, round(best_score, 3), "semantic")
 
     except Exception as e:
         print(f"[SemanticClassifier] Inference error for '{counterparty_name}': {e}")
+        return (None, 0.0, "unavailable")
+
+
+def classify_counterparty(counterparty_name: str) -> dict:
+    """
+    Returns {"category": str|None, "confidence": float, "method": "semantic"|"unavailable"}
+    Falls back to None if nothing clears the threshold or model is unavailable.
+    """
+    normalized = (counterparty_name or "").strip()
+    if not normalized:
         return {"category": None, "confidence": 0.0, "method": "unavailable"}
+
+    category, confidence, method = _classify_counterparty_cached(normalized)
+    return {"category": category, "confidence": confidence, "method": method}

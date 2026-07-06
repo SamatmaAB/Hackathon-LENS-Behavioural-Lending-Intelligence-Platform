@@ -63,6 +63,7 @@ SESSION_HOURS = 12
 ROLES = {"admin", "relationship_manager", "analyst"}
 WRITE_ROLES = {"admin", "relationship_manager"}
 is_generating = False
+generation_started_at = None
 generating_lock = threading.Lock()
 
 app = FastAPI(title="LENS — Behavioural Intelligence Engine", version="1.0.0")
@@ -568,14 +569,18 @@ def admin_create_user(payload: CreateUserRequest, admin: dict = Depends(require_
 
 @app.post("/api/generate")
 def generate(n_customers: int = Query(150, ge=20, le=1000), seed: int = Query(None), noise_level: float = Query(0.20, ge=0.0, le=1.0), user=Depends(require_write_user)):
-    global is_generating
+    global is_generating, generation_started_at
     with generating_lock:
         if is_generating:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Database generation is already in progress. Please wait."
+                detail={
+                    "message": "Database generation is already in progress. Please wait.",
+                    "started_at": generation_started_at,
+                }
             )
         is_generating = True
+        generation_started_at = datetime.utcnow().isoformat()
     try:
         seed = seed if seed is not None else datetime.now().microsecond
         n_cust, n_txn = data_gen.build_current_database(n_customers=n_customers, seed=seed, db_path=DB_PATH, noise_level=noise_level)
@@ -585,6 +590,7 @@ def generate(n_customers: int = Query(150, ge=20, le=1000), seed: int = Query(No
     finally:
         with generating_lock:
             is_generating = False
+            generation_started_at = None
 
 
 # ---------------------------------------------------------------------------
@@ -828,7 +834,12 @@ def health():
     users = db.scalar(conn, "SELECT COUNT(*) FROM users")
     customers = db.scalar(conn, "SELECT COUNT(*) FROM customers")
     conn.close()
-    return {"status": "ok", "data_ready": customers > 0, "users_registered": users}
+    with generating_lock:
+        generation_status = {
+            "is_generating": is_generating,
+            "generation_started_at": generation_started_at,
+        }
+    return {"status": "ok", "data_ready": customers > 0, "users_registered": users, **generation_status}
 
 
 # ---------------------------------------------------------------------------
