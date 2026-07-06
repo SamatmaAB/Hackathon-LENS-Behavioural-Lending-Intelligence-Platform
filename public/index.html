@@ -194,7 +194,7 @@ body{
 
 .trigger-list{display:flex;flex-direction:column;gap:8px;}
 .trigger-row{
-  display:grid;grid-template-columns:1fr 100px 50px;align-items:center;gap:12px;
+  display:grid;grid-template-columns:1fr 100px 90px;align-items:center;gap:12px;
   background:var(--surface);border:1px solid var(--border-soft);border-radius:9px;padding:10px 14px;
 }
 .trigger-row .name{font-size:13px;color:var(--text-hi);}
@@ -311,6 +311,168 @@ body{
 .role-tag.admin{background:rgba(242,135,12,0.16);color:var(--amber);}
 .role-tag.relationship_manager{background:rgba(22,194,174,0.16);color:var(--teal);}
 .role-tag.analyst{background:rgba(92,107,135,0.2);color:#8C9AB5;}
+
+/* ---------- Visual Enhancements (Trust, KPI, Reasoning, Scan) ---------- */
+.reasoning-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+}
+.flow-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+.flow-icon {
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--surface-3);
+}
+.flow-label {
+  font-size: 10px;
+  color: var(--text-low);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+.flow-value {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-hi);
+  margin-top: 2px;
+}
+.flow-arrow {
+  text-align: center;
+  color: var(--text-low);
+  font-size: 12px;
+  line-height: 1;
+  margin: 2px 0;
+}
+.live-scan {
+  background: #060913;
+  border: 1px solid var(--border);
+  color: var(--teal);
+  font-family: var(--font-mono);
+  padding: 20px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  max-width: 550px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+.scan-line {
+  padding: 4px 0;
+  opacity: 0;
+  animation: fadeIn 0.3s forwards;
+}
+.scan-line.done {
+  color: var(--teal);
+}
+.scan-line.active {
+  color: var(--amber);
+  font-weight: bold;
+}
+.roi-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.roi-legend .dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+@keyframes fadeIn {
+  to { opacity: 1; }
+}
+
+/* ---------- Printing & Compare Styles ---------- */
+.lead-tree {
+  font-family: var(--font-body);
+}
+#lens-printable-report {
+  display: none;
+}
+.dashboard-bg {
+  background: linear-gradient(120deg, var(--surface) 0%, var(--surface-2) 100%) !important;
+  background-size: 200% 200%;
+  animation: subtleShift 18s ease infinite;
+}
+@keyframes subtleShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #lens-printable-report, #lens-printable-report * {
+    visibility: visible;
+  }
+  #lens-printable-report {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: #ffffff !important;
+    color: #111827 !important;
+    padding: 20px;
+    font-family: var(--font-body);
+  }
+}
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 180px 1fr;
+  gap: 12px 24px;
+  align-items: center;
+}
+.compare-head {
+  font-family: var(--font-display);
+  font-size: 15px;
+  text-align: center;
+  padding: 12px;
+}
+.compare-head.center {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.compare-cell {
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 10px 16px;
+  text-align: center;
+  font-size: 13.5px;
+  transition: all 0.2s ease;
+}
+.compare-cell.win {
+  border-color: var(--teal-dim);
+  background: rgba(22, 194, 174, 0.08);
+  color: var(--teal);
+  font-weight: 600;
+}
+.compare-label {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-low);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
 
 /* ---------- Auth UI ---------- */
 .auth-container {
@@ -512,12 +674,22 @@ const API_BASE = (() => {
   return window.location.origin;
 })();
 const storageKey = 'lens_auth_v2';
+const emptyCustomer = {
+  customer_id:'', name:'', age:32, city:'', state:'', employment_type:'Salaried',
+  declared_income:'', true_monthly_income:'', true_loan_type:'None', persona:'manual'
+};
+const emptyTxn = {customer_id:'', type:'SALARY_CREDIT', amount:'', counterparty:'Employer Payroll', timestamp:''};
 
 const TIER_COLORS = {'Tier 1': 'var(--tier1)', 'Tier 2': 'var(--tier2)', 'Tier 3': 'var(--tier3)'};
 
 function fmtINR(n) {
   if (n === null || n === undefined) return '—';
   return '₹' + Number(n).toLocaleString('en-IN', {maximumFractionDigits: 0});
+}
+
+function normalize_loan_type(loan_type) {
+  if (loan_type === "Mortgage") return "Mortgage Loan";
+  return loan_type;
 }
 
 function fmtRelTime(iso) {
@@ -537,7 +709,781 @@ function fmtWindowEnd(iso) {
   return 'closes in ' + Math.max(1, Math.round(diffH)) + 'h';
 }
 
-/* ---------- Toast ---------- */
+function useCountUp(target, duration = 900, decimals = 0) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    let start = null, raf;
+    const step = (ts) => {
+      if (!start) start = ts;
+      const p = Math.min((ts - start) / duration, 1);
+      const current = p * target;
+      setVal(Number(current.toFixed(decimals)));
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target, decimals]);
+  return val;
+}
+
+function KPICard({ label, value, decimals = 0, suffix = "", prefix = "", bench, pulseIndex }) {
+  const animated = useCountUp(value, 900, decimals);
+  return (
+    <div className="kpi" title={label === 'Conversion Rate' ? "% of flagged leads whose ground-truth persona matches genuine loan intent, evaluated against the synthetic labels generated with noise_level=20%" : undefined}>
+      <div className="label">{label}</div>
+      <div className="value">{prefix}{animated.toLocaleString('en-IN', {minimumFractionDigits: decimals, maximumFractionDigits: decimals})}{suffix}</div>
+      <div className="bench">{bench}</div>
+      <div className="kpi-pulse">
+        <PulseLine intensity={40 + pulseIndex * 11} width={300} height={26} id={'kpi' + pulseIndex} animate={false} />
+      </div>
+    </div>
+  );
+}
+
+function TrustGauge({ score, tier, size = 68 }) {
+  const angle = -90 + (score / 100) * 180;
+  const color = TIER_COLORS[tier] || 'var(--teal)';
+  const dash = (score / 100) * 283;
+  return (
+    <svg viewBox="0 0 200 120" width={size} height={size * 0.65} style={{ display: 'block' }}>
+      <path d="M10,110 A90,90 0 0,1 190,110" fill="none" stroke="var(--border-soft)" strokeWidth="16" strokeLinecap="round" />
+      <path d="M10,110 A90,90 0 0,1 190,110" fill="none" stroke={color} strokeWidth="16"
+            strokeLinecap="round" strokeDasharray={`${dash} 283`} style={{ transition: "stroke-dasharray 0.8s ease" }} />
+      <line x1="100" y1="110" x2={100 + 70 * Math.cos(angle * Math.PI / 180)}
+            y2={110 + 70 * Math.sin(angle * Math.PI / 180)} stroke="var(--text-hi)" strokeWidth="4" strokeLinecap="round" />
+      <circle cx="100" cy="110" r="10" fill="var(--text-hi)" />
+      <text x="100" y="65" textAnchor="middle" fontSize="30" fontWeight="700" fill="var(--text-hi)" fontFamily="var(--font-display)">{score}</text>
+      <text x="100" y="90" textAnchor="middle" fontSize="15" fontWeight="600" fill="var(--text-mid)" fontFamily="var(--font-body)">{tier}</text>
+    </svg>
+  );
+}
+
+function ReasoningFlow({ customer, lead, income_breakdown, capacity }) {
+  const steps = [
+    { label: "PULSE — Behavioral Triggers", value: lead.triggers_fired.map(t => t.label).join(" | ") || "No triggers", icon: "⚡" },
+    { label: "CLARITY — Income Reconstructed", value: `${fmtINR(income_breakdown?.synthetic_monthly_income)}/mo (${100 - (lead.income_accuracy_pct || 0)}% confidence via ${income_breakdown?.method})`, icon: "💰" },
+    { 
+      label: "CAPACITY — Underwriting capacity", 
+      value: capacity 
+        ? `Eligible limit: ${fmtINR(capacity.recommended_eligible_amount)} for ${capacity.recommended_tenure_months} months (DTI: ${(capacity.dti_ratio * 100).toFixed(1)}% · Safe EMI: ${fmtINR(capacity.safe_emi_ceiling)})`
+        : "Loading capacity...", 
+      icon: "⚖️" 
+    },
+    { label: "MATCH — Loan Product", value: `${lead.predicted_loan_type} predicted`, icon: "🎯" },
+    { label: "MOMENT — Outreach Channel", value: `${lead.outreach_channel} recommended`, icon: "📞" },
+    { label: "TRUST SCORE — Credit Quality", value: `${lead.trust_score} / 100 — ${lead.tier} (${lead.tier_action_label || 'Refer to RM'})`, icon: "✅" },
+  ];
+
+  return (
+    <div className="reasoning-flow">
+      {steps.map((s, i) => (
+        <React.Fragment key={i}>
+          <div className="flow-step">
+            <span className="flow-icon">{s.icon}</span>
+            <div>
+              <div className="flow-label">{s.label}</div>
+              <div className="flow-value">{s.value}</div>
+            </div>
+          </div>
+          {i < steps.length - 1 && <div className="flow-arrow">↓</div>}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function LiveScanAnimation({ active }) {
+  const messages = [
+    "Connecting to core banking transaction warehouse...",
+    "Scanning 90-day transaction history for behavioral patterns...",
+    "Detecting credit-intent triggers (PULSE)...",
+    "Clustering irregular UPI flows & estimating synthetic income (CLARITY)...",
+    "Classifying loan product propensity (MATCH)...",
+    "Recommending optimal outreach channels and time windows (MOMENT)...",
+    "Calibrating risk-shifted FOIR limits & repayment capacity (CAPACITY)...",
+    "Calculating risk-adjusted credit tiers and trust scores (TRUST SCORE)...",
+    "Commiting leads and Maker-Checker approval configurations to ledger...",
+  ];
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (!active) { setIdx(0); return; }
+    const id = setInterval(() => setIdx(i => Math.min(i + 1, messages.length - 1)), 600);
+    return () => clearInterval(id);
+  }, [active]);
+
+  if (!active) return null;
+  return (
+    <div className="live-scan">
+      {messages.slice(0, idx + 1).map((m, i) => (
+        <div key={i} className={i === idx ? "scan-line active" : "scan-line done"}>
+          {i < idx ? "✓ " : "› "}{m}
+        </div>
+      ))}
+      {idx < messages.length - 1 && (
+        <div className="spinner" style={{ width: 20, height: 20, marginTop: 15 }}></div>
+      )}
+    </div>
+  );
+}
+
+function FairnessBarChart({ segments }) {
+  if (!segments || segments.length === 0) return null;
+  const max = Math.max(...segments.map(s => s.conversion_rate_pct), 10);
+  return (
+    <svg viewBox={`0 0 400 ${segments.length * 40 + 20}`} width="100%" style={{ maxWidth: 450, display: 'block', margin: '0 auto' }}>
+      {segments.map((s, i) => (
+        <g key={s.segment_name} transform={`translate(0, ${i * 40 + 10})`}>
+          <text x="0" y="14" fontSize="12" fill="var(--text-mid)" fontWeight="500">{s.segment_name}</text>
+          <rect x="120" y="0" width={(s.conversion_rate_pct / max) * 230} height="18"
+                fill={s.is_underperforming ? "var(--red)" : "var(--teal)"} rx="3"
+                style={{ transition: "width 0.6s ease" }} />
+          <text x={125 + (s.conversion_rate_pct / max) * 230} y="14" fontSize="12" fill="var(--text-hi)" fontWeight="600">{s.conversion_rate_pct}%</text>
+          {s.is_underperforming && <text x="370" y="14" fontSize="11" fill="var(--red)">⚠ bias alert</text>}
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function RoiDonut({ assessmentCost, outreachCost, netProfit }) {
+  const total = assessmentCost + outreachCost + (netProfit > 0 ? netProfit : 0);
+  const p1 = total > 0 ? (assessmentCost / total) * 100 : 0;
+  const p2 = total > 0 ? p1 + (outreachCost / total) * 100 : 0;
+  
+  const style = {
+    background: `conic-gradient(var(--red) 0% ${p1}%, var(--amber) ${p1}% ${p2}%, var(--teal) ${p2}% 100%)`,
+    width: 140, height: 140, borderRadius: "50%", position: "relative",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+    display: "flex", alignItems: "center", justifyContent: "center"
+  };
+  
+  const innerCircleStyle = {
+    width: "70%", height: "70%", borderRadius: "50%",
+    background: "var(--surface-2)", display: "flex", flexDirection: "column",
+    alignItems: "center", justifyContent: "center"
+  };
+
+  return (
+    <div style={{ display: "flex", gap: 32, alignItems: "center", background: "var(--surface)", border: "1px solid var(--border-soft)", borderRadius: 12, padding: "20px 24px" }}>
+      <div style={style}>
+        <div style={innerCircleStyle}>
+          <div style={{ fontSize: 10, color: "var(--text-low)", textTransform: "uppercase", letterSpacing: ".5px" }}>Profit Yield</div>
+          <div style={{ fontSize: 16, fontWeight: "bold", color: "var(--teal)" }}>{total > 0 ? ((netProfit / total) * 100).toFixed(0) : 0}%</div>
+        </div>
+      </div>
+      <div className="roi-legend">
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-mid)" }}>
+          <span className="dot" style={{ background: "var(--red)", width: 10, height: 10, borderRadius: "50%", display: "inline-block" }} /> 
+          <b>Assessment Cost:</b> {fmtINR(assessmentCost)}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-mid)" }}>
+          <span className="dot" style={{ background: "var(--amber)", width: 10, height: 10, borderRadius: "50%", display: "inline-block" }} /> 
+          <b>Outreach Cost:</b> {fmtINR(outreachCost)}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-mid)" }}>
+          <span className="dot" style={{ background: "var(--teal)", width: 10, height: 10, borderRadius: "50%", display: "inline-block" }} /> 
+          <b>Projected Profit:</b> {fmtINR(netProfit)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ArchitectureFlow() {
+  const stages = [
+    { name: "PULSE", desc: "14 behavioural triggers", color: "var(--indigo)" },
+    { name: "CLARITY", desc: "Income reconstruction", color: "var(--teal)" },
+    { name: "CAPACITY", desc: "DTI & FOIR eligibility", color: "var(--amber)" },
+    { name: "MATCH", desc: "Loan type prediction", color: "var(--violet)" },
+    { name: "MOMENT", desc: "Outreach timing", color: "var(--teal-dim)" },
+    { name: "TRUST SCORE", desc: "Tier 1/2/3", color: "var(--red)" },
+  ];
+  const boxW = 120, boxH = 65, gap = 20, w = stages.length * (boxW + gap);
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 16, padding: '18px 24px', marginBottom: 24 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 12 }}>LENS Behavioural Lending System Architecture Flow</div>
+      <svg viewBox={`0 0 ${w} 100`} width="100%" height="80" style={{ maxWidth: 900, display: 'block', margin: '0 auto' }}>
+        {stages.map((s, i) => {
+          const x = i * (boxW + gap) + 10;
+          return (
+            <g key={s.name}>
+              <rect x={x} y="15" width={boxW} height={boxH} rx="10" fill={s.color} opacity="0.12" stroke={s.color} strokeWidth="1.5" />
+              <text x={x + boxW / 2} y="40" textAnchor="middle" fontSize="12" fontWeight="700" fill={s.color} fontFamily="var(--font-display)">{s.name}</text>
+              <text x={x + boxW / 2} y="58" textAnchor="middle" fontSize="8" fill="var(--text-mid)" fontFamily="var(--font-body)">{s.desc}</text>
+              {i < stages.length - 1 && (
+                <path d={`M${x + boxW},45 L${x + boxW + gap - 6},45`} stroke="var(--border)" strokeWidth="2" markerEnd="url(#arrow)" />
+              )}
+            </g>
+          );
+        })}
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="var(--text-low)" />
+          </marker>
+        </defs>
+      </svg>
+    </div>
+  );
+}
+
+function PipelineFunnel({ stages }) {
+  if (!stages || stages.length === 0) return null;
+  const w = 500, h = 260, barH = 46, gap = 12;
+  const max = stages[0].value || 1;
+
+  return (
+    <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 12 }}>Lead Generation & Conversion Funnel</div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} style={{ maxWidth: 440, display: 'block', margin: '0 auto' }}>
+        {stages.map((s, i) => {
+          const widthPct = s.value / max;
+          const barW = widthPct * (w - 160);
+          const x = (w - barW) / 2;
+          const y = i * (barH + gap) + 10;
+          const color = ["var(--indigo)", "var(--teal)", "var(--teal-dim)", "var(--amber)"][i % 4];
+          return (
+            <g key={s.label}>
+              <path
+                d={`M${x},${y} L${x + barW},${y} L${x + barW - 14},${y + barH} L${x + 14},${y + barH} Z`}
+                fill={color} opacity="0.85"
+              />
+              <text x={w / 2} y={y + barH / 2 + 4} textAnchor="middle" fontSize="13" fontWeight="700" fill="#fff" fontFamily="var(--font-display)">
+                {s.value}
+              </text>
+              <text x={w / 2} y={y - 4} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--text-mid)" fontFamily="var(--font-body)">{s.label}</text>
+              {i > 0 && (
+                <text x={w - 60} y={y + barH / 2 + 4} fontSize="11" fill="var(--text-low)" fontWeight="bold" fontFamily="var(--font-mono)">
+                  {Math.round((s.value / (stages[i - 1].value || 1)) * 100)}%
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function ConfusionMatrixHeatmap({ matrix, labels }) {
+  if (!matrix || matrix.length === 0) return null;
+  const max = Math.max(...matrix.flat(), 1);
+  const cell = 54, pad = 90;
+  const size = pad + cell * labels.length + 20;
+
+  return (
+    <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '20px', marginTop: 15 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 15 }}>Confusion Matrix Heatmap</div>
+      <svg viewBox={`0 0 ${size} ${size}`} width="100%" height="100%" style={{ maxWidth: 400, display: 'block', margin: '0 auto' }}>
+        <text x={pad + (cell * labels.length) / 2} y="18" textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--text-hi)" fontFamily="var(--font-display)">
+          Predicted →
+        </text>
+        <text x="18" y={pad + (cell * labels.length) / 2} fontSize="11" fontWeight="700" fill="var(--text-hi)" fontFamily="var(--font-display)"
+              transform={`rotate(-90 18 ${pad + (cell * labels.length) / 2})`}>
+          Actual →
+        </text>
+        {labels.map((l, j) => (
+          <text key={"c" + j} x={pad + j * cell + cell / 2} y={pad - 8} fontSize="9" fontWeight="600" fill="var(--text-mid)" textAnchor="middle" fontFamily="var(--font-body)">{l}</text>
+        ))}
+        {labels.map((l, i) => (
+          <text key={"r" + i} x={pad - 8} y={pad + i * cell + cell / 2 + 4} fontSize="9" fontWeight="600" fill="var(--text-mid)" textAnchor="end" fontFamily="var(--font-body)">{l}</text>
+        ))}
+        {matrix.map((row, i) => row.map((v, j) => {
+          const intensity = v / max;
+          const isDiagonal = i === j;
+          const fill = isDiagonal
+            ? `rgba(22,194,174,${0.15 + intensity * 0.85})`
+            : `rgba(229,72,77,${0.1 + intensity * 0.6})`;
+          return (
+            <g key={`${i}-${j}`}>
+              <rect x={pad + j * cell} y={pad + i * cell} width={cell - 2} height={cell - 2} fill={fill} rx="4" />
+              <text x={pad + j * cell + cell / 2} y={pad + i * cell + cell / 2 + 4}
+                    textAnchor="middle" fontSize="12" fontWeight="700" fill={intensity > 0.5 ? "#fff" : "var(--text-hi)"} fontFamily="var(--font-mono)">
+                {v}
+              </text>
+            </g>
+          );
+        }))}
+      </svg>
+    </div>
+  );
+}
+
+function CapacityWaterfall({ steps }) {
+  if (!steps || steps.length === 0) return null;
+  const w = 640, h = 260, barW = 80, gap = 20;
+  const maxVal = Math.max(...steps.map(s => Math.abs(s.value)), steps[0].value, 1);
+  const scale = (h - 70) / maxVal;
+  let running = 0;
+
+  const colorFor = (type) =>
+    type === "decrease" ? "var(--red)" : type === "start" || type === "subtotal" ? "var(--indigo)" : "var(--teal)";
+
+  return (
+    <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginBottom: 24, marginTop: 15 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 12 }}>Repayment Capacity Waterfall (monthly deductions)</div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
+        <line x1="0" y1={h - 30} x2={w} y2={h - 30} stroke="var(--border-soft)" strokeWidth="1.5" />
+        {steps.map((s, i) => {
+          const x = i * (barW + gap) + 10;
+          let barTop, barHeight;
+          if (s.type === "start" || s.type === "subtotal" || s.type === "end") {
+            barHeight = Math.abs(s.value) * scale;
+            barTop = h - 30 - barHeight;
+            running = s.value;
+          } else {
+            barHeight = Math.abs(s.value) * scale;
+            barTop = h - 30 - (running * scale);
+            running += s.value;
+          }
+          return (
+            <g key={i}>
+              <rect x={x} y={barTop} width={barW} height={Math.max(2, barHeight)} fill={colorFor(s.type)} opacity="0.85" rx="3" />
+              <text x={x + barW / 2} y={barTop - 6} textAnchor="middle" fontSize="9" fontWeight="700" fill="var(--text-hi)" fontFamily="var(--font-mono)">
+                {s.value < 0 ? "-" : ""}₹{Math.round(Math.abs(s.value)).toLocaleString('en-IN')}
+              </text>
+              <text x={x + barW / 2} y={h - 14} textAnchor="middle" fontSize="9" fill="var(--text-mid)" fontFamily="var(--font-body)">
+                {s.label}
+              </text>
+              {i < steps.length - 1 && (
+                <line x1={x + barW} y1={barTop} x2={x + barW + gap} y2={barTop}
+                      stroke="var(--text-low)" strokeDasharray="2,2" />
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function FoirBandChart({ bands, appliedFoir, loanType }) {
+  if (!bands) return null;
+  const w = 500, h = 200, barH = 30, gap = 22, pad = 130;
+  const scale = (w - pad - 45) / 60; // 0-60% FOIR range with 45px right padding
+
+  return (
+    <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginBottom: 24, marginTop: 15 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 12 }}>FOIR Underwriting Bands & Applied Interpolation</div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
+        {bands.map((b, i) => {
+          const y = i * (barH + gap) + 15;
+          const isActive = b.loanType === loanType;
+          return (
+            <g key={b.loanType}>
+              <text x="0" y={y + barH / 2 + 4} fontSize="11" fontWeight={isActive ? "700" : "400"} fill="var(--text-hi)" fontFamily="var(--font-body)">
+                {b.loanType}
+              </text>
+              <rect x={pad + b.min * scale} y={y} width={(b.max - b.min) * scale} height={barH}
+                    fill={isActive ? "var(--teal)" : "var(--border)"} opacity={isActive ? 0.9 : 0.4} rx="4" />
+              <text x={pad + b.min * scale - 4} y={y + barH / 2 + 4} fontSize="9" textAnchor="end" fill="var(--text-low)" fontFamily="var(--font-mono)">
+                {b.min}%
+              </text>
+              <text x={pad + b.max * scale + 4} y={y + barH / 2 + 4} fontSize="9" fill="var(--text-low)" fontFamily="var(--font-mono)">
+                {b.max}%
+              </text>
+              {isActive && (
+                <>
+                  <line x1={pad + appliedFoir * scale} y1={y - 6} x2={pad + appliedFoir * scale} y2={y + barH + 6}
+                        stroke="var(--red)" strokeWidth="2.5" />
+                  <text x={pad + appliedFoir * scale + (appliedFoir >= 56 ? -6 : appliedFoir <= 4 ? 6 : 0)} 
+                        y={y - 10} 
+                        fontSize="10" 
+                        fill="var(--red)" 
+                        textAnchor={appliedFoir >= 56 ? "end" : appliedFoir <= 4 ? "start" : "middle"} 
+                        fontWeight="700" 
+                        fontFamily="var(--font-display)">
+                    {appliedFoir}% applied
+                  </text>
+                </>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function TriggerCooccurrenceMatrix({ triggerNames, coMatrix }) {
+  if (!triggerNames || !coMatrix || coMatrix.length === 0) return null;
+  const n = triggerNames.length;
+  const cell = 22, pad = 120;
+  const size = pad + cell * n + 20;
+  const max = Math.max(...coMatrix.flat().filter((_, idx) => idx % (n + 1) !== 0), 1);
+
+  return (
+    <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '20px', marginTop: 15 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 15 }}>Trigger Co-occurrence Matrix (14 categories)</div>
+      <svg viewBox={`0 0 ${size} ${size}`} width="100%" height="100%" style={{ maxWidth: 440, display: 'block', margin: '0 auto' }}>
+        {triggerNames.map((name, i) => (
+          <text key={"col" + i} x={pad + i * cell + cell / 2} y={pad - 6} fontSize="7" fill="var(--text-mid)" fontWeight="600"
+                textAnchor="start" transform={`rotate(-45 ${pad + i * cell + cell / 2} ${pad - 6})`} fontFamily="var(--font-body)">
+            {name}
+          </text>
+        ))}
+        {triggerNames.map((name, i) => (
+          <text key={"row" + i} x={pad - 8} y={pad + i * cell + cell / 2 + 3} fontSize="7.5" fill="var(--text-mid)" fontWeight="600" textAnchor="end" fontFamily="var(--font-body)">
+            {name}
+          </text>
+        ))}
+        {coMatrix.map((row, i) => row.map((v, j) => {
+          if (i === j) return (
+            <rect key={`${i}-${j}`} x={pad + j * cell} y={pad + i * cell} width={cell - 1} height={cell - 1} fill="var(--border-soft)" rx="2" />
+          );
+          const intensity = v / max;
+          const fill = `rgba(8, 145, 178, ${intensity})`;
+          return (
+            <rect key={`${i}-${j}`} x={pad + j * cell} y={pad + i * cell} width={cell - 1} height={cell - 1}
+                  fill={fill} rx="2" title={`${v} overlaps`} />
+          );
+        }))}
+      </svg>
+    </div>
+  );
+}
+
+function TransactionSpikeChart({ dailyVolumes, triggerDays }) {
+  if (!dailyVolumes || dailyVolumes.length === 0) return null;
+  const w = 600, h = 140, pad = 20;
+  const max = Math.max(...dailyVolumes.map(d => d.amount), 1);
+  const x = (day) => pad + (day / 89) * (w - pad * 2);
+  const y = (amt) => h - pad - (amt / max) * (h - pad * 2);
+  
+  const path = dailyVolumes
+    .map((d, i) => `${i === 0 ? "M" : "L"}${x(d.day)},${y(d.amount)}`)
+    .join(" ");
+
+  return (
+    <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginTop: 24, marginBottom: 24 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 12 }}>90-Day Transaction Volume & Fired Triggers</div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
+        <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="var(--border-soft)" strokeWidth="1.5" />
+        <path d={path} fill="none" stroke="var(--teal)" strokeWidth="2.5" strokeLinejoin="round" />
+        {dailyVolumes.filter(d => triggerDays.has(d.day)).map(d => (
+          <g key={d.day}>
+            <circle cx={x(d.day)} cy={y(d.amount)} r="5.5" fill="var(--red)" />
+            <line x1={x(d.day)} y1={y(d.amount)} x2={x(d.day)} y2={h - pad} stroke="var(--red)" strokeWidth="1.5" strokeDasharray="3,3" />
+          </g>
+        ))}
+        <text x={pad} y="14" fontSize="10" fill="var(--text-low)" fontFamily="var(--font-body)">₹ daily volume</text>
+        <text x={w - pad} y="14" fontSize="10" fill="var(--red)" fontWeight="600" textAnchor="end" fontFamily="var(--font-body)">● behavioral trigger fired</text>
+      </svg>
+    </div>
+  );
+}
+
+function LeadFileTree({ customer, lead, income_breakdown, capacity, transactions }) {
+  const [open, setOpen] = useState({ triggers: true, income: true });
+  const toggle = (k) => setOpen(o => ({ ...o, [k]: !o[k] }));
+
+  const nodes = [
+    { key: "triggers", label: `Triggers Fired (${lead.triggers_fired.length})`,
+      content: lead.triggers_fired.map(t => `${t.label} (weight: ${t.weight})`) },
+    { key: "income", label: "Income Reconstruction (CLARITY)",
+      content: [`Synthetic: ${fmtINR(income_breakdown?.synthetic_monthly_income)}/mo`,
+                 `Confidence: ${100 - (lead.income_accuracy_pct || 0)}%`,
+                 `Methodology: ${income_breakdown?.method}`] },
+    { key: "capacity", label: "Underwriting & Capacity (CAPACITY)",
+      content: capacity 
+        ? [`Eligible Principal: ${fmtINR(capacity.recommended_eligible_amount)}`,
+           `Recommended Tenure: ${capacity.recommended_tenure_months} months`,
+           `Debt-to-Income (DTI): ${(capacity.dti_ratio * 100).toFixed(1)}%`,
+           `Disposable Income: ${fmtINR(capacity.disposable_income)}/mo`,
+           `Safe EMI Ceiling: ${fmtINR(capacity.safe_emi_ceiling)}/mo`,
+           `Existing EMI detected: ${fmtINR(capacity.existing_emi_monthly)}/mo`]
+        : ["Underwriting details loading..."]
+    },
+    { key: "loan", label: "Matched Product (MATCH)", content: [`Propensity: ${lead.predicted_loan_type}`] },
+    { key: "outreach", label: "Outreach Plan (MOMENT)",
+      content: [`Channel: ${lead.outreach_channel}`,
+                `Window ends: ${fmtWindowEnd(lead.outreach_window_end)}`] },
+    { key: "transactions", label: `Recent Transactions (${transactions.length})`,
+      content: transactions.slice(0, 10).map(t => `${new Date(t.timestamp).toLocaleDateString('en-IN', {day:'2-digit', month:'short'})} · ${fmtINR(t.amount)} · ${t.counterparty}`) },
+  ];
+
+  return (
+    <div className="lead-tree" style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginBottom: 24 }}>
+      <div className="tree-root" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-hi)', fontSize: 14, marginBottom: 12 }}>📁 Underwriting Evidence File: {lead.customer_id}</div>
+      {nodes.map(n => (
+        <div key={n.key} className="tree-node" style={{ marginLeft: 12, marginBottom: 8 }}>
+          <div className="tree-label" onClick={() => toggle(n.key)} style={{ cursor: 'pointer', padding: '4px 0', userSelect: 'none', fontWeight: 600, color: 'var(--text-hi)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: 'var(--teal)', fontSize: 10 }}>{open[n.key] ? "▼" : "▶"}</span> {n.label}
+          </div>
+          {open[n.key] && (
+            <div className="tree-content" style={{ marginLeft: 18, borderLeft: '1px dashed var(--border-soft)', paddingLeft: 12, color: 'var(--text-mid)', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+              {n.content.map((c, i) => <div key={i} className="tree-leaf" style={{ padding: '2px 0' }}>— {c}</div>)}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PrintableReport({ customer, lead, income_breakdown, capacity, transactions }) {
+  if (!customer || !lead) return null;
+  return (
+    <div id="lens-printable-report">
+      <div style={{ borderBottom: '2px solid #111827', paddingBottom: 15, marginBottom: 25, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ fontSize: 24, margin: 0, fontWeight: 'bold', color: '#111827', fontFamily: 'Space Grotesk' }}>LENS — Prospect Intelligence Report</h1>
+          <div style={{ fontSize: 12, color: '#4b5563', marginTop: 4 }}>Ranked, Explainable Retail Lending Underwriting Artifact</div>
+        </div>
+        <div style={{ textAlign: 'right', fontSize: 12, color: '#4b5563' }}>
+          <div>Generated: {new Date().toLocaleString('en-IN')}</div>
+          <div>Confidential · IDBI Innovate 2026</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 30, marginBottom: 25 }}>
+        <div>
+          <h3 style={{ borderBottom: '1px solid #d1d5db', paddingBottom: 6, margin: '0 0 10px', fontSize: 16 }}>Borrower Profile</h3>
+          <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+            <tbody>
+              <tr><td style={{ padding: '6px 0', fontWeight: 'bold', width: 140 }}>Customer Name:</td><td>{customer.name}</td></tr>
+              <tr><td style={{ padding: '6px 0', fontWeight: 'bold' }}>Customer ID:</td><td>{customer.customer_id}</td></tr>
+              <tr><td style={{ padding: '6px 0', fontWeight: 'bold' }}>Demographics:</td><td>{customer.age} years old · {customer.city}, {customer.state}</td></tr>
+              <tr><td style={{ padding: '6px 0', fontWeight: 'bold' }}>Employment Segment:</td><td>{customer.employment_type}</td></tr>
+              <tr><td style={{ padding: '6px 0', fontWeight: 'bold' }}>Matched Product:</td><td>{lead.predicted_loan_type}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f3f4f6', borderRadius: 12, padding: 15 }}>
+          <div style={{ fontSize: 11, textTransform: 'uppercase', color: '#4B5563', fontWeight: 'bold', marginBottom: 5 }}>Risk & Repayment Quality</div>
+          <TrustGauge score={lead.trust_score} tier={lead.tier} size={110} />
+          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, fontWeight: '600' }}>{lead.tier_action_label}</div>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 25 }}>
+        <h3 style={{ borderBottom: '1px solid #d1d5db', paddingBottom: 6, margin: '0 0 10px', fontSize: 16 }}>1. PULSE — Behavioral Intent & Trigger Analysis</h3>
+        <p style={{ fontSize: 12.5, color: '#4b5563', margin: '0 0 10px' }}>
+          Behavior-derived intent score: <b>{lead.intent_score} / 100</b>. The following high-fidelity indicators were detected in the transactional records:
+        </p>
+        <table style={{ width: '100%', fontSize: 12.5, borderCollapse: 'collapse', textAlign: 'left' }}>
+          <thead>
+            <tr style={{ background: '#f3f4f6' }}>
+              <th style={{ padding: '8px 10px', borderBottom: '1.5px solid #d1d5db' }}>Fired Trigger</th>
+              <th style={{ padding: '8px 10px', borderBottom: '1.5px solid #d1d5db', textAlign: 'center' }}>Score Weight</th>
+              <th style={{ padding: '8px 10px', borderBottom: '1.5px solid #d1d5db', textAlign: 'right' }}>Intensity Contribution</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lead.triggers_fired.map(t => (
+              <tr key={t.code}>
+                <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb' }}>{t.label}</td>
+                <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb', textAlign: 'center', fontFamily: 'monospace' }}>{t.weight > 0 ? '+' : ''}{t.weight}</td>
+                <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', fontFamily: 'monospace' }}>{t.contribution}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ marginBottom: 25, pageBreakInside: 'avoid' }}>
+        <h3 style={{ borderBottom: '1px solid #d1d5db', paddingBottom: 6, margin: '0 0 10px', fontSize: 16 }}>2. CLARITY & CAPACITY — Alternative Income & Underwriting Limits</h3>
+        <p style={{ fontSize: 12.5, color: '#4b5563', margin: '0 0 10px' }}>
+          Net monthly income reconstructed from UPI transaction streams. Debt-to-Income (DTI) and loan ceilings calibrated against risk tier:
+        </p>
+        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', marginBottom: 15 }}>
+          <tbody>
+            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+              <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Reconstructed Monthly Income:</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmtINR(income_breakdown?.synthetic_monthly_income)}/mo</td>
+              <td style={{ padding: '8px 0', fontWeight: 'bold', paddingLeft: 30 }}>Declared Monthly Income:</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{customer.declared_income ? fmtINR(customer.declared_income) : 'None filed'}</td>
+            </tr>
+            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+              <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Existing Monthly EMI Obligations:</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace', color: capacity?.existing_emi_monthly > 0 ? '#dc2626' : undefined }}>{fmtINR(capacity?.existing_emi_monthly || 0)}</td>
+              <td style={{ padding: '8px 0', fontWeight: 'bold', paddingLeft: 30 }}>Safe Monthly EMI Ceiling:</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#16a34a', fontWeight: 'bold' }}>{fmtINR(capacity?.safe_emi_ceiling || 0)}</td>
+            </tr>
+            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+              <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Applied FOIR Limit:</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{((capacity?.foir_ratio_applied || 0) * 100).toFixed(1)}%</td>
+              <td style={{ padding: '8px 0', fontWeight: 'bold', paddingLeft: 30 }}>Debt-to-Income (DTI) Ratio:</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{((capacity?.dti_ratio || 0) * 100).toFixed(1)}%</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {capacity && (
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 'bold', marginBottom: 6, color: '#374151' }}>Eligible Loan Capacity Sheet:</div>
+            <table style={{ width: '100%', fontSize: 12.5, borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ background: '#f3f4f6' }}>
+                  <th style={{ padding: '6px 10px', borderBottom: '1.5px solid #d1d5db' }}>Loan Product Option</th>
+                  <th style={{ padding: '6px 10px', borderBottom: '1.5px solid #d1d5db', textAlign: 'right' }}>Max Eligible Amount</th>
+                  <th style={{ padding: '6px 10px', borderBottom: '1.5px solid #d1d5db', textAlign: 'right' }}>Assumed APR</th>
+                  <th style={{ padding: '6px 10px', borderBottom: '1.5px solid #d1d5db', textAlign: 'right' }}>Standard Tenure</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(capacity.eligible_amount_by_type).map(([ltype, amt]) => {
+                  const isRecommended = ltype === normalize_loan_type(capacity.recommended_loan_type);
+                  const rate = capacity.assumptions.assumed_rates?.[ltype] || capacity.assumptions.assumed_rates?.[normalize_loan_type(ltype)] || 0;
+                  const tenure = capacity.assumptions.assumed_tenure_months?.[ltype] || capacity.assumptions.assumed_tenure_months?.[normalize_loan_type(ltype)] || 0;
+                  return (
+                    <tr key={ltype} style={isRecommended ? { background: '#f0fdf4', fontWeight: 'bold' } : undefined}>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb' }}>{ltype} {isRecommended && "(Recommended)"}</td>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', fontFamily: 'monospace' }}>{fmtINR(amt)}</td>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', fontFamily: 'monospace' }}>{rate.toFixed(1)}%</td>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', fontFamily: 'monospace' }}>{tenure} months</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div style={{ borderTop: '1px solid #d1d5db', paddingTop: 15, textAlign: 'center', fontSize: 10, color: '#9ca3af', marginTop: 40, pageBreakInside: 'avoid' }}>
+        This document represents an algorithmic retail lead pre-qualification report compiled by the LENS Behavioural Lending Intelligence Platform. All metrics are computed dynamically from actual digital transaction signatures. Review manually before credit disbursal.
+      </div>
+    </div>
+  );
+}
+
+function CompareLeadsWorkspace({ leads, token, onUnauthorized }) {
+  const [leadAId, setLeadAId] = useState('');
+  const [leadBId, setLeadBId] = useState('');
+  const [leadA, setLeadA] = useState(null);
+  const [leadB, setLeadB] = useState(null);
+  const [loadingA, setLoadingA] = useState(false);
+  const [loadingB, setLoadingB] = useState(false);
+
+  useEffect(() => {
+    if (leads && leads.length >= 2) {
+      setLeadAId(leads[0].customer_id);
+      setLeadBId(leads[1].customer_id);
+    }
+  }, [leads]);
+
+  useEffect(() => {
+    if (!leadAId || !token) return;
+    setLoadingA(true);
+    fetch(`${API_BASE}/api/leads/${leadAId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(d => { setLeadA(d); setLoadingA(false); })
+      .catch(() => setLoadingA(false));
+  }, [leadAId, token]);
+
+  useEffect(() => {
+    if (!leadBId || !token) return;
+    setLoadingB(true);
+    fetch(`${API_BASE}/api/leads/${leadBId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(d => { setLeadB(d); setLoadingB(false); })
+      .catch(() => setLoadingB(false));
+  }, [leadBId, token]);
+
+  const winner = (a, b) => {
+    const numA = parseFloat(a);
+    const numB = parseFloat(b);
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return numA > numB ? "A" : numB > numA ? "B" : null;
+    }
+    return null;
+  };
+
+  const getCompareRows = () => {
+    if (!leadA || !leadB) return [];
+    return [
+      ["Trust Score", leadA.lead.trust_score, leadB.lead.trust_score],
+      ["Tier", leadA.lead.tier, leadB.lead.tier],
+      ["Predicted Loan", leadA.lead.predicted_loan_type, leadB.lead.predicted_loan_type],
+      ["Reconstructed Income", leadA.income_breakdown?.synthetic_monthly_income, leadB.income_breakdown?.synthetic_monthly_income, true],
+      ["Income Confidence", 100 - (leadA.lead.income_accuracy_pct || 0), 100 - (leadB.lead.income_accuracy_pct || 0), false, "%"],
+      ["Trigger Count", leadA.lead.triggers_fired.length, leadB.lead.triggers_fired.length],
+      ["Outreach Channel", leadA.lead.outreach_channel, leadB.lead.outreach_channel],
+      ["Eligible Loan Capacity", leadA.capacity?.recommended_eligible_amount, leadB.capacity?.recommended_eligible_amount, true],
+      ["DTI Ratio", (leadA.capacity?.dti_ratio * 100) || 0, (leadB.capacity?.dti_ratio * 100) || 0, false, "%"],
+    ];
+  };
+
+  const rows = getCompareRows();
+
+  return (
+    <div style={{ padding: '0 32px 32px' }}>
+      <h3 style={{ fontFamily: 'var(--font-display)', marginBottom: 20 }}>Side-by-Side Lead Comparison</h3>
+      <p style={{ fontSize: 13, color: 'var(--text-mid)', marginBottom: 24 }}>
+        Select two prospective leads to compare their trust score, income confidence, trigger density, and underwriting capacities side-by-side.
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 1fr', gap: 20, marginBottom: 24 }}>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Lead A</label>
+          <select 
+            value={leadAId} 
+            onChange={e => setLeadAId(e.target.value)}
+            style={{ width: '100%', background: 'var(--surface-2)', color: 'var(--text-hi)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', fontSize: 13 }}
+          >
+            {leads.map(l => (
+              <option key={l.customer_id} value={l.customer_id}>{l.name} ({l.customer_id})</option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'var(--text-low)', fontSize: 14, paddingTop: 18 }}>
+          VS
+        </div>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Lead B</label>
+          <select 
+            value={leadBId} 
+            onChange={e => setLeadBId(e.target.value)}
+            style={{ width: '100%', background: 'var(--surface-2)', color: 'var(--text-hi)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', fontSize: 13 }}
+          >
+            {leads.map(l => (
+              <option key={l.customer_id} value={l.customer_id}>{l.name} ({l.customer_id})</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {loadingA || loadingB ? (
+        <div style={{ padding: 60, textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }}></div></div>
+      ) : leadA && leadB ? (
+        <div className="compare-grid" style={{ background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 16, padding: '24px 30px' }}>
+          <div className="compare-head" style={{ borderBottom: '2px solid var(--border)', paddingBottom: 10, fontWeight: 'bold', color: 'var(--text-hi)' }}>{leadA.customer.name}</div>
+          <div className="compare-head center" style={{ borderBottom: '2px solid var(--border)', paddingBottom: 10, color: 'var(--text-low)' }}>Category</div>
+          <div className="compare-head" style={{ borderBottom: '2px solid var(--border)', paddingBottom: 10, fontWeight: 'bold', color: 'var(--text-hi)' }}>{leadB.customer.name}</div>
+          
+          {rows.map(([label, valA, valB, isCurrency, suffix = ""], i) => {
+            const w = winner(valA, valB);
+            
+            const formatVal = (v) => {
+              if (v === null || v === undefined) return '—';
+              if (isCurrency) return fmtINR(v);
+              return typeof v === 'number' ? v.toLocaleString('en-IN') + suffix : v + suffix;
+            };
+
+            return (
+              <React.Fragment key={i}>
+                <div className={`compare-cell ${w === "A" ? "win" : ""}`}>
+                  {formatVal(valA)}
+                </div>
+                <div className="compare-label">{label}</div>
+                <div className={`compare-cell ${w === "B" ? "win" : ""}`}>
+                  {formatVal(valB)}
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{ color: 'var(--text-low)', fontStyle: 'italic', textAlign: 'center', padding: 40 }}>Please select two valid leads to begin.</div>
+      )}
+    </div>
+  );
+}
 function Toast({msg, type, onDone}) {
   useEffect(() => {
     const t = setTimeout(onDone, 3000);
@@ -553,7 +1499,7 @@ function Toast({msg, type, onDone}) {
   );
 }
 
-/* ---------- Pulse waveform SVG ---------- */
+/* ---------- Pulse waveform SVG (the signature element) ---------- */
 function PulseLine({intensity = 50, color = 'var(--teal)', width = 200, height = 26, animate = true, id}) {
   const w = width, h = height, mid = h / 2;
   const segs = 6;
@@ -623,23 +1569,13 @@ function KPIStrip({stats}) {
   if (!stats) return null;
   const conv = stats.lead_conversion_rate_pct;
   const bench = stats.industry_benchmark;
-  const items = [
-    {label: 'Active Leads', value: stats.total_leads, bench: `from ${stats.total_customers} customers scanned`},
-    {label: 'Conversion Rate', value: conv + '%', bench: <><b>{bench.lead_conversion_rate_pct}%</b> industry avg</>},
-    {label: 'Avg. Time to Lead', value: stats.avg_hours_to_lead + 'h', bench: <><b>{bench.time_to_lead_hours}h</b> batch cycle</>},
-    {label: 'Income Accuracy', value: '±' + stats.avg_income_deviation_pct + '%', bench: 'non-salaried, vs actual'},
-    {label: 'Loan-Type Match', value: stats.loan_type_accuracy_pct + '%', bench: 'predicted vs realized'},
-  ];
   return (
     <div className="kpi-strip">
-      {items.map((it, i) => (
-        <div className="kpi" key={i}>
-          <div className="label">{it.label}</div>
-          <div className="value">{it.value}</div>
-          <div className="bench">{it.bench}</div>
-          <div className="kpi-pulse"><PulseLine intensity={40 + i * 11} width={300} height={26} id={'kpi'+i} animate={false} /></div>
-        </div>
-      ))}
+      <KPICard label="Active Leads" value={stats.total_leads} decimals={0} bench={`from ${stats.total_customers} customers scanned`} pulseIndex={0} />
+      <KPICard label="Conversion Rate" value={conv} decimals={1} suffix="%" bench={<>vs <b>{bench.lead_conversion_rate_pct}%</b> industry avg</>} pulseIndex={1} />
+      <KPICard label="Avg. Time to Lead" value={stats.avg_hours_to_lead} decimals={2} suffix="h" bench={<>vs <b>{bench.time_to_lead_hours}h</b> batch cycle</>} pulseIndex={2} />
+      <KPICard label="Income Accuracy" value={stats.avg_income_deviation_pct} decimals={1} prefix="±" suffix="%" bench="non-salaried, vs actual" pulseIndex={3} />
+      <KPICard label="Loan-Type Match" value={stats.loan_type_accuracy_pct} decimals={1} suffix="%" bench="predicted vs realized" pulseIndex={4} />
     </div>
   );
 }
@@ -654,13 +1590,15 @@ function LeadCard({lead, selected, onClick}) {
           <div className="lead-name">{lead.name}</div>
           <div className="lead-meta">{lead.customer_id} · {lead.employment_type} · {lead.city}</div>
         </div>
-        <span className={`tier-badge ${tierClass}`}>{lead.tier.toUpperCase()}</span>
+        <span className={`tier-badge ${tierClass}`} title={lead.tier_action_label || ''}>{lead.tier.toUpperCase()}</span>
       </div>
-      <div className="lead-card-mid">
+      <div className="lead-card-mid" style={{ justifyContent: 'space-between' }}>
         <div className="pulse-mini">
-          <PulseLine intensity={lead.intent_score} color={TIER_COLORS[lead.tier]} width={220} height={26} id={lead.customer_id} />
+          <PulseLine intensity={lead.intent_score} color={TIER_COLORS[lead.tier]} width={150} height={26} id={lead.customer_id} />
         </div>
-        <div className="trust-pill">{lead.trust_score}</div>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+          <TrustGauge score={lead.trust_score} tier={lead.tier} size={60} />
+        </div>
       </div>
       <div className="lead-card-bottom">
         <span className="loan-chip">{lead.predicted_loan_type}</span>
@@ -670,11 +1608,106 @@ function LeadCard({lead, selected, onClick}) {
   );
 }
 
+const REAL_ESTATE_PAYEES = new Set(["Lodha Developers", "Godrej Properties", "DLF Homes", "Sub-Registrar Office", "HDFC Property Escrow", "Brigade Group"]);
+const AUTO_PAYEES = new Set(["Maruti Suzuki Arena", "Tata Motors Showroom", "Hyundai Dealership", "Mahindra Auto World", "TVS Motor Showroom"]);
+const EDU_PAYEES = new Set(["DPS School Fees", "VIT Vellore Fees", "Manipal University", "Byju's Tuition"]);
+const MEDICAL_PAYEES = new Set(["Apollo Hospitals", "Fortis Healthcare", "Manipal Hospital", "Star Health Insurance"]);
+const WEDDING_PAYEES = new Set(["Banquet Hall Booking", "Wedding Decor Co", "Jewellery Mart", "Catering Services"]);
+
+function isTriggerTxn(t) {
+  if (t.type === "EMI_DEBIT") return true;
+  if (REAL_ESTATE_PAYEES.has(t.counterparty)) return true;
+  if (AUTO_PAYEES.has(t.counterparty)) return true;
+  if (EDU_PAYEES.has(t.counterparty)) return true;
+  if (MEDICAL_PAYEES.has(t.counterparty)) return true;
+  if (WEDDING_PAYEES.has(t.counterparty)) return true;
+  if (t.type === "UPI_DEBIT" && t.amount >= 50000) return true;
+  return false;
+}
+
+/* ---------- AI Narrative Card (Feature 1) ---------- */
+function AINarrativeCard({customerId, token}) {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const generate = () => {
+    if (loading) return;
+    setLoading(true); setErr(null);
+    fetch(`${API_BASE}/api/leads/${customerId}/narrative`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => { if (!r.ok) return r.json().then(e => { throw new Error(e.detail || 'Failed'); }); return r.json(); })
+      .then(d => { setData(d); setLoading(false); setOpen(true); })
+      .catch(e => { setErr(e.message); setLoading(false); });
+  };
+
+  return (
+    <div style={{marginTop:24, background:'linear-gradient(135deg, rgba(22,194,174,0.07), rgba(99,102,241,0.05))', border:'1px solid rgba(22,194,174,0.2)', borderRadius:14, padding:'16px 20px'}}>
+      <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+        <div style={{display:'flex', alignItems:'center', gap:8}}>
+          <span style={{fontSize:18}}>✦</span>
+          <div>
+            <div style={{fontWeight:700, fontSize:13.5, color:'var(--text)'}}>LENS AI Briefing</div>
+            <div style={{fontSize:11.5, color:'var(--text-low)'}}>Claude-powered narrative, outreach draft &amp; objection playbook</div>
+          </div>
+        </div>
+        <div style={{display:'flex', gap:8, alignItems:'center'}}>
+          {data && <span style={{fontSize:11, color:'var(--text-low)'}}>{data.cached ? '⚡ cached' : '✓ fresh'}</span>}
+          <button
+            id={`ai-briefing-btn-${customerId}`}
+            onClick={data ? () => setOpen(!open) : generate}
+            disabled={loading}
+            style={{background:'var(--teal)', border:'none', borderRadius:8, color:'#fff', padding:'8px 16px', fontSize:12.5, fontWeight:600, cursor:'pointer', opacity: loading ? 0.6 : 1}}
+          >
+            {loading ? 'Generating…' : data ? (open ? 'Collapse' : 'Show Briefing') : 'Generate AI Briefing'}
+          </button>
+        </div>
+      </div>
+
+      {err && <div style={{color:'#ef4444', fontSize:12.5, marginTop:10}}>⚠ {err}</div>}
+
+      {open && data && (
+        <div style={{marginTop:16, display:'flex', flexDirection:'column', gap:14}}>
+          <div style={{background:'var(--surface)', borderRadius:10, padding:'14px 16px'}}>
+            <div style={{fontSize:11, fontWeight:700, color:'var(--teal)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6}}>Narrative</div>
+            <div style={{fontSize:13.5, lineHeight:1.7, color:'var(--text)'}}>{data.narrative}</div>
+          </div>
+          <div style={{background:'var(--surface)', borderRadius:10, padding:'14px 16px'}}>
+            <div style={{fontSize:11, fontWeight:700, color:'var(--teal)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6}}>Draft Outreach Message</div>
+            <div style={{fontSize:13, lineHeight:1.7, color:'var(--text)', whiteSpace:'pre-wrap', fontFamily:'var(--font-mono)'}}>{data.outreach_draft}</div>
+          </div>
+          {data.objections && data.objections.length > 0 && (
+            <div style={{background:'var(--surface)', borderRadius:10, padding:'14px 16px'}}>
+              <div style={{fontSize:11, fontWeight:700, color:'var(--teal)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:10}}>Likely Objections &amp; Responses</div>
+              <div style={{display:'flex', flexDirection:'column', gap:10}}>
+                {data.objections.map((obj, i) => (
+                  <div key={i} style={{borderLeft:'2px solid var(--border)', paddingLeft:12}}>
+                    <div style={{fontSize:12.5, fontWeight:600, color:'var(--text)', marginBottom:4}}>Q: {obj.question}</div>
+                    <div style={{fontSize:12.5, color:'var(--text-mid)', lineHeight:1.6}}>A: {obj.response}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- Detail panel ---------- */
 function DetailPanel({customerId, token, onUnauthorized}) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(null);
+
+  const lead = data?.lead;
+  const customer = data?.customer;
+  const transactions = data?.transactions || [];
+  const income_breakdown = data?.income_breakdown;
 
   useEffect(() => {
     if (!customerId || !token) return;
@@ -691,6 +1724,47 @@ function DetailPanel({customerId, token, onUnauthorized}) {
       .catch(e => { setErr(e.message); setLoading(false); });
   }, [customerId, token, onUnauthorized]);
 
+  const { dailyVolumes, triggerDays } = useMemo(() => {
+    if (!data || !data.transactions) return { dailyVolumes: [], triggerDays: new Set() };
+    const vols = Array.from({ length: 90 }, (_, i) => ({ day: i, amount: 0 }));
+    const tDays = new Set();
+    const today = new Date();
+    
+    data.transactions.forEach(t => {
+      const txDate = new Date(t.timestamp);
+      const diffDays = Math.floor((today.getTime() - txDate.getTime()) / 864e5);
+      if (diffDays >= 0 && diffDays < 90) {
+        const dayIdx = 89 - diffDays;
+        vols[dayIdx].amount += Math.abs(t.amount);
+        if (isTriggerTxn(t)) {
+          tDays.add(dayIdx);
+        }
+      }
+    });
+    return { dailyVolumes: vols, triggerDays: tDays };
+  }, [data]);
+
+  const waterfallSteps = useMemo(() => {
+    if (!lead || !lead.capacity) return [];
+    const cap = lead.capacity;
+    const utilities = -(cap.reconstructed_income - cap.existing_emi_monthly - cap.disposable_income);
+    return [
+      { label: "Reconstructed Income", value: cap.reconstructed_income, type: "start" },
+      { label: "Existing EMIs", value: -cap.existing_emi_monthly, type: "decrease" },
+      { label: "Recurring Utilities", value: Number(utilities.toFixed(2)), type: "decrease" },
+      { label: "Disposable Income", value: cap.disposable_income, type: "subtotal" },
+      { label: "Safe EMI Ceiling", value: -cap.safe_emi_ceiling, type: "decrease" },
+      { label: "Eligible Principal", value: cap.recommended_eligible_amount, type: "end" }
+    ];
+  }, [lead]);
+
+  const foirBands = useMemo(() => [
+    { loanType: "Personal Loan", min: 40, max: 50 },
+    { loanType: "Auto Loan", min: 45, max: 55 },
+    { loanType: "Home Loan", min: 50, max: 60 },
+    { loanType: "Mortgage Loan", min: 50, max: 55 }
+  ], []);
+
   if (!customerId) {
     return (
       <div className="empty-state">
@@ -703,7 +1777,6 @@ function DetailPanel({customerId, token, onUnauthorized}) {
   if (loading || !data) return <div className="empty-state"><div className="spinner"></div></div>;
   if (err) return <div className="error-banner">{err}</div>;
 
-  const {customer, lead, transactions, income_breakdown} = data;
   if (!lead) {
     return (
       <div className="empty-state">
@@ -718,10 +1791,15 @@ function DetailPanel({customerId, token, onUnauthorized}) {
 
   return (
     <div>
+      <PrintableReport customer={customer} lead={lead} income_breakdown={income_breakdown} capacity={lead.capacity} transactions={transactions} />
       <div className="detail-head">
         <div>
           <h2>{customer.name}</h2>
           <div className="detail-sub">{customer.customer_id} · {customer.age} yrs · {customer.employment_type} · {customer.city}, {customer.state}</div>
+          <div style={{fontSize: 12.5, color: 'var(--teal)', marginTop: 5, fontWeight: 600}}>⚡ Underwriter Action: {lead.tier_action_label || 'Refer to RM for manual review'}</div>
+          <button className="btn" onClick={() => window.print()} style={{ marginTop: 10, fontSize: 11.5, padding: '6px 12px', height: 'auto', borderColor: 'var(--teal-dim)', color: 'var(--teal)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            🖨️ Print Intelligence Report
+          </button>
         </div>
         <div className="score-ring-wrap">
           <ScoreRing value={lead.intent_score} label="Intent" color="var(--amber)" />
@@ -733,7 +1811,7 @@ function DetailPanel({customerId, token, onUnauthorized}) {
         <div className="metric-card">
           <div className="l">Predicted Loan Type</div>
           <div className="v">{lead.predicted_loan_type}</div>
-          <div className="d">Lead Tier — {lead.tier}</div>
+          <div className="d">{lead.tier} — {lead.tier_action_label || 'Refer to RM'}</div>
         </div>
         <div className="metric-card">
           <div className="l">Signal → Lead Card</div>
@@ -747,6 +1825,14 @@ function DetailPanel({customerId, token, onUnauthorized}) {
         </div>
       </div>
 
+      <div className="section-title"><span className="dot"></span>LENS Explainable Reasoning Flow</div>
+      <div style={{background: 'var(--surface-2)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginBottom: 24}}>
+        <ReasoningFlow customer={customer} lead={lead} income_breakdown={income_breakdown} capacity={lead.capacity} />
+      </div>
+
+      <div className="section-title"><span className="dot"></span>Underwriter Evidence Explorer (Case File)</div>
+      <LeadFileTree customer={customer} lead={lead} income_breakdown={income_breakdown} capacity={lead.capacity} transactions={transactions} />
+
       <div className="section-title"><span className="dot"></span>PULSE — Behavioural Triggers Fired</div>
       <div className="trigger-list">
         {lead.triggers_fired.map(t => (
@@ -755,7 +1841,7 @@ function DetailPanel({customerId, token, onUnauthorized}) {
             <div className="trigger-bar-track">
               <div className="trigger-bar-fill" style={{width: `${Math.max(8, Math.abs(t.weight)/maxTriggerW*100)}%`, background: t.weight < 0 ? 'var(--red)' : undefined}}></div>
             </div>
-            <div className="w">{t.weight > 0 ? '+' : ''}{t.weight}</div>
+            <div className="w" style={{whiteSpace: 'nowrap'}}>{t.weight > 0 ? '+' : ''}{t.weight} {t.contribution > 0 ? `(${t.contribution}%)` : ''}</div>
           </div>
         ))}
       </div>
@@ -785,6 +1871,97 @@ function DetailPanel({customerId, token, onUnauthorized}) {
         </div>
       </div>
 
+      <div className="section-title"><span className="dot"></span>CAPACITY — Repayment Capacity & Loan Eligibility</div>
+      {lead.capacity ? (
+        <div className="income-panel" style={{display:'flex', flexDirection:'column', gap:18}}>
+          {/* Reconstructed vs Declared */}
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, width:'100%'}}>
+            <div className="income-figure">
+              <div className="lbl">Reconstructed Income</div>
+              <div className="big" style={{color:'var(--teal)'}}>{fmtINR(lead.capacity.reconstructed_income)}</div>
+            </div>
+            <div className="income-figure">
+              <div className="lbl">Declared Income</div>
+              <div className="big" style={{color:'var(--text-low)'}}>{fmtINR(lead.capacity.declared_income)}</div>
+            </div>
+          </div>
+
+          {/* Disposable Income, existing EMI detected, safe EMI ceiling (3-bar breakdown) */}
+          <div className="income-bars" style={{width:'100%', borderTop:'1px solid var(--border-soft)', paddingTop:14}}>
+            <div className="income-bar-row">
+              <div className="ib-label">Existing EMI</div>
+              <div className="income-bar-track">
+                <div className="income-bar-fill" style={{width: `${Math.min(100, (lead.capacity.existing_emi_monthly / (lead.capacity.reconstructed_income || 1)) * 100)}%`, background:'var(--red)'}}></div>
+              </div>
+              <div className="ib-val" style={{color:'var(--red)'}}>{fmtINR(lead.capacity.existing_emi_monthly)}</div>
+            </div>
+            <div className="income-bar-row">
+              <div className="ib-label">Safe EMI Ceiling</div>
+              <div className="income-bar-track">
+                <div className="income-bar-fill" style={{width: `${Math.min(100, (lead.capacity.safe_emi_ceiling / (lead.capacity.reconstructed_income || 1)) * 100)}%`, background:'var(--teal)'}}></div>
+              </div>
+              <div className="ib-val" style={{color:'var(--teal)'}}>{fmtINR(lead.capacity.safe_emi_ceiling)}</div>
+            </div>
+            <div className="income-bar-row">
+              <div className="ib-label">Disposable Income</div>
+              <div className="income-bar-track">
+                <div className="income-bar-fill" style={{width: `${Math.min(100, (lead.capacity.disposable_income / (lead.capacity.reconstructed_income || 1)) * 100)}%`, background:'var(--text-mid)'}}></div>
+              </div>
+              <div className="ib-val">{fmtINR(lead.capacity.disposable_income)}</div>
+            </div>
+          </div>
+
+          {lead.capacity.over_leveraged && (
+            <div style={{background:'rgba(229,72,77,0.1)', border:'1px solid var(--red)', borderRadius:8, padding:'10px 14px', color:'var(--red)', fontSize:12.5, width:'100%'}}>
+              ⚠️ <b>Over-Leveraged Lead:</b> Detected debt obligations exceed 60% of reconstructed income.
+            </div>
+          )}
+
+          {/* Comparison table */}
+          <div style={{width:'100%', borderTop:'1px solid var(--border-soft)', paddingTop:14}}>
+            <div style={{fontSize:11, fontWeight:600, color:'var(--text-low)', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:8}}>Loan Eligibility Comparison</div>
+            <table className="txn-table" style={{marginTop:0}}>
+              <thead>
+                <tr>
+                  <th style={{padding:'6px 8px'}}>Loan Product</th>
+                  <th style={{padding:'6px 8px', textAlign:'right'}}>Eligible Amount</th>
+                  <th style={{padding:'6px 8px', textAlign:'right'}}>Tenure</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(lead.capacity.eligible_amount_by_type).map(([ltype, amt]) => {
+                  const isRecommended = ltype === normalize_loan_type(lead.capacity.recommended_loan_type);
+                  const tenure = lead.capacity.assumptions.assumed_tenure_months[ltype] || 0;
+                  return (
+                    <tr key={ltype} style={isRecommended ? {background:'rgba(22,194,174,0.06)'} : undefined}>
+                      <td style={{padding:'8px', fontWeight: isRecommended ? 'bold' : 'normal', color: isRecommended ? 'var(--teal)' : 'var(--text-mid)'}}>
+                        {ltype} {isRecommended && <span style={{fontSize:9, background:'rgba(22,194,174,0.15)', color:'var(--teal)', padding:'1px 5px', borderRadius:4, marginLeft:6}}>REC</span>}
+                      </td>
+                      <td className="amt" style={{padding:'8px', textAlign:'right', fontWeight: isRecommended ? 'bold' : 'normal', color: isRecommended ? 'var(--teal)' : 'var(--text-hi)'}}>
+                        {fmtINR(amt)}
+                      </td>
+                      <td style={{padding:'8px', textAlign:'right', color:'var(--text-mid)'}}>
+                        {tenure} months
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* assumptions disclosure */}
+          <div style={{fontSize:11, color:'var(--text-low)', fontStyle:'italic', width:'100%'}}>
+            * Assumes Personal 13%, Auto 9.5%, Home 8.5%, Mortgage 9% p.a. — RM should verify against current rate card. Applied FOIR: {(lead.capacity.foir_ratio_applied * 100).toFixed(1)}%. DTI: {(lead.capacity.dti_ratio * 100).toFixed(1)}%.
+          </div>
+
+          <CapacityWaterfall steps={waterfallSteps} />
+          <FoirBandChart bands={foirBands} appliedFoir={Math.round(lead.capacity.foir_ratio_applied * 100)} loanType={normalize_loan_type(lead.capacity.recommended_loan_type)} />
+        </div>
+      ) : (
+        <div style={{color:'var(--text-low)', fontSize:12.5, fontStyle:'italic'}}>Capacity details unavailable.</div>
+      )}
+
       <div className="section-title"><span className="dot"></span>MOMENT — Recommended Outreach</div>
       <div className="outreach-card">
         <div>
@@ -793,6 +1970,8 @@ function DetailPanel({customerId, token, onUnauthorized}) {
         </div>
         <div className="loan-chip" style={{fontSize:12, padding:'7px 14px'}}>MATCH confidence: behaviour-derived</div>
       </div>
+
+      <TransactionSpikeChart dailyVolumes={dailyVolumes} triggerDays={triggerDays} />
 
       <div className="section-title"><span className="dot"></span>Recent Transaction Stream ({transactions.length} total)</div>
       <table className="txn-table">
@@ -810,149 +1989,615 @@ function DetailPanel({customerId, token, onUnauthorized}) {
           ))}
         </tbody>
       </table>
+
+      <AINarrativeCard customerId={customerId} token={token} />
     </div>
   );
 }
 
-/* ---------- Governance Panel ---------- */
-function GovernancePanel({token, onUnauthorized}) {
-  const [tab, setTab] = useState('fairness');
-  const [data, setData] = useState({});
+
+/* ---------- Governance Dashboard Component ---------- */
+function GovernanceDashboard({leads, stats, token, user, onUnauthorized}) {
+  const [subTab, setSubTab] = useState('evaluation'); // 'evaluation', 'fairness', 'compliance', 'sandbox', 'roi', 'sentry'
+  const [evalData, setEvalData] = useState(null);
+  const [fairnessData, setFairnessData] = useState(null);
+  const [complianceData, setComplianceData] = useState(null);
+  const [sandboxData, setSandboxData] = useState(null);
+  const [roiData, setRoiData] = useState(null);
+  const [sentryData, setSentryData] = useState(null);
+  const [askQuestion, setAskQuestion] = useState('');
+  const [askAnswer, setAskAnswer] = useState(null);
+  const [askLoading, setAskLoading] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const endpoints = {
-    fairness: '/api/governance/fairness',
-    compliance: '/api/governance/compliance',
-    roi: '/api/governance/roi',
-  };
+  const classes = ["None", "Home Loan", "Auto Loan", "Personal Loan", "Mortgage"];
+  const matrixArray = useMemo(() => {
+    if (!evalData || !evalData.confusion_matrix) return Array.from({length: 5}, () => Array(5).fill(0));
+    return classes.map(actual => 
+      classes.map(predicted => (evalData.confusion_matrix[actual]?.[predicted] || 0))
+    );
+  }, [evalData]);
 
-  useEffect(() => {
-    if (data[tab]) return;
-    setLoading(true);
-    fetch(`${API_BASE}${endpoints[tab]}`, {
+  const triggerNames = [
+    "SALARY_BOOST", "TXN_ACTIVITY", "EMI_DEBIT", "UPI_SPIKE", "REAL_ESTATE",
+    "AUTO_INTEREST", "EDU_EXPENSE", "MED_EXPENSE", "WEDDING_IND", "BAL_DROP",
+    "CC_PAYMENT", "UTIL_BOOST", "GIG_RECURRING", "INVEST_DIP"
+  ];
+  
+  const coMatrix = useMemo(() => {
+    const size = triggerNames.length;
+    const matrix = Array.from({ length: size }, () => Array(size).fill(0));
+    if (!leads) return matrix;
+    
+    leads.forEach(lead => {
+      const active = new Set(lead.triggers_fired || []);
+      for (let i = 0; i < size; i++) {
+        for (let j = 0; j < size; j++) {
+          if (active.has(triggerNames[i]) && active.has(triggerNames[j])) {
+            matrix[i][j] += 1;
+          }
+        }
+      }
+    });
+    return matrix;
+  }, [leads]);
+
+  const funnelStages = useMemo(() => {
+    if (!stats || !leads) return [];
+    const t1Leads = leads.filter(l => l.tier === 'Tier 1').length;
+    const projectedConversions = Math.round(leads.length * 0.15);
+    return [
+      { label: "Total Customers Scanned", value: stats.total_customers },
+      { label: "Flagged Leads (Trigger Cleared)", value: leads.length },
+      { label: "Tier 1 (High Trust Leads)", value: t1Leads },
+      { label: "Projected Conversions (15% Yield)", value: projectedConversions }
+    ];
+  }, [stats, leads]);
+
+  const fetchSubData = useCallback((tab) => {
+    if (!token) return;
+    setLoading(true); setError(null);
+    let endpoint = '';
+    if (tab === 'evaluation') endpoint = '/api/governance/evaluation';
+    else if (tab === 'fairness') endpoint = '/api/governance/fairness';
+    else if (tab === 'compliance') endpoint = '/api/governance/compliance';
+    else if (tab === 'sandbox') endpoint = '/api/governance/sandbox-mapping';
+    else if (tab === 'roi') endpoint = '/api/governance/roi';
+    else if (tab === 'sentry') endpoint = '/api/governance/anomalies';
+
+    fetch(`${API_BASE}${endpoint}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(r => {
-        if (r.status === 401) { onUnauthorized(); throw new Error('unauthorized'); }
-        if (!r.ok) throw new Error('Failed to load');
+        if (r.status === 401) { onUnauthorized(); throw new Error('Session expired'); }
+        if (!r.ok) throw new Error('Failed to load governance report');
         return r.json();
       })
-      .then(d => { setData(prev => ({...prev, [tab]: d})); setLoading(false); })
-      .catch(() => setLoading(false));
-  }, [tab, token]);
+      .then(data => {
+        if (tab === 'evaluation') setEvalData(data);
+        else if (tab === 'fairness') setFairnessData(data);
+        else if (tab === 'compliance') setComplianceData(data);
+        else if (tab === 'sandbox') setSandboxData(data);
+        else if (tab === 'roi') setRoiData(data);
+        else if (tab === 'sentry') setSentryData(data);
+        setLoading(false);
+      })
+      .catch(e => {
+        setError(e.message);
+        setLoading(false);
+      });
+  }, [token, onUnauthorized]);
 
-  const d = data[tab];
+  const submitAsk = () => {
+    if (!askQuestion.trim() || askLoading) return;
+    setAskLoading(true); setAskAnswer(null);
+    fetch(`${API_BASE}/api/governance/ask`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: askQuestion.trim() })
+    })
+      .then(r => r.json())
+      .then(d => { setAskAnswer(d.answer || d.detail || 'No answer returned.'); setAskLoading(false); })
+      .catch(e => { setAskAnswer(`Error: ${e.message}`); setAskLoading(false); });
+  };
 
-  return (
-    <div className="gov-section">
-      <div style={{display:'flex', gap:8, marginBottom:24, flexWrap:'wrap'}}>
-        {[['fairness','Fairness Audit'],['compliance','Compliance'],['roi','ROI Analysis']].map(([k,label]) => (
-          <button key={k} className={`btn ${tab===k?'primary':''}`} onClick={() => setTab(k)}>
-            {label}
-          </button>
-        ))}
+  useEffect(() => {
+    fetchSubData(subTab);
+  }, [subTab, fetchSubData]);
+
+  const renderContent = () => {
+    if (loading) return <div style={{padding: 50, textAlign: 'center'}}><div className="spinner" style={{margin: '0 auto'}}></div></div>;
+    if (error) return <div className="error-banner">{error}</div>;
+
+    if (subTab === 'evaluation' && evalData) {
+      const {confusion_matrix, class_metrics, macro_averages} = evalData;
+      const classes = ["None", "Home Loan", "Auto Loan", "Personal Loan", "Mortgage"];
+      return (
+        <div>
+          <h3>Model Classification Self-Evaluation</h3>
+          <p style={{fontSize: 13, color: 'var(--text-mid)', marginBottom: 20}}>
+            Calculated dynamically across all database customers. Real-world behavioral signals carry inherent ambiguity, leading to class deviations which are tracked here in real-time.
+          </p>
+          
+          <div className="metric-grid" style={{marginBottom: 28}}>
+            <div className="metric-card">
+              <div className="l">Macro Precision</div>
+              <div className="v">{macro_averages.precision}%</div>
+              <div className="d">Avg positive predictive value</div>
+            </div>
+            <div className="metric-card">
+              <div className="l">Macro Recall</div>
+              <div className="v">{macro_averages.recall}%</div>
+              <div className="d">Avg sensitivity across classes</div>
+            </div>
+            <div className="metric-card">
+              <div className="l">Macro F1-Score</div>
+              <div className="v">{macro_averages.f1_score}%</div>
+              <div className="d">Harmonic mean of precision/recall</div>
+            </div>
+          </div>
+
+          <div style={{display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: 24, alignItems: 'start'}}>
+            <div>
+              <h4 style={{margin: '0 0 12px'}}>Confusion Matrix</h4>
+              <div style={{overflowX: 'auto', background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 16}}>
+                <table style={{width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: 13}}>
+                  <thead>
+                    <tr>
+                      <th style={{padding: '8px 4px', borderBottom: '1px solid var(--border)', color: 'var(--text-low)', fontSize: 11, textAlign: 'left'}}>Actual \ Pred</th>
+                      {classes.map(c => <th key={c} style={{padding: '8px 4px', borderBottom: '1px solid var(--border)', fontWeight: 600}}>{c}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {classes.map(actual => (
+                      <tr key={actual}>
+                        <td style={{padding: '10px 4px', borderBottom: '1px solid var(--border-soft)', fontWeight: 600, color: 'var(--text-mid)', textAlign: 'left'}}>{actual}</td>
+                        {classes.map(pred => {
+                          const val = confusion_matrix[actual]?.[pred] || 0;
+                          const isDiagonal = actual === pred;
+                          return (
+                            <td key={pred} style={{
+                              padding: '10px 4px', 
+                              borderBottom: '1px solid var(--border-soft)',
+                              fontFamily: 'var(--font-mono)',
+                              background: isDiagonal && val > 0 ? 'rgba(22, 194, 174, 0.08)' : undefined,
+                              color: isDiagonal && val > 0 ? 'var(--teal)' : 'var(--text-hi)'
+                            }}>
+                              {val}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <div>
+              <h4 style={{margin: '0 0 12px'}}>Class Metrics Breakdown</h4>
+              <div style={{background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 16, overflowX: 'auto'}}>
+                <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 12.5, textAlign: 'left'}}>
+                  <thead>
+                    <tr>
+                      <th style={{padding: '8px 4px', borderBottom: '1px solid var(--border)', fontWeight: 600}}>Loan Product</th>
+                      <th style={{padding: '8px 4px', borderBottom: '1px solid var(--border)', fontWeight: 600, textAlign: 'right'}}>Precision</th>
+                      <th style={{padding: '8px 4px', borderBottom: '1px solid var(--border)', fontWeight: 600, textAlign: 'right'}}>Recall</th>
+                      <th style={{padding: '8px 4px', borderBottom: '1px solid var(--border)', fontWeight: 600, textAlign: 'right'}}>F1 Score</th>
+                      <th style={{padding: '8px 4px', borderBottom: '1px solid var(--border)', fontWeight: 600, color: 'var(--text-low)', fontSize: 11, textAlign: 'right'}}>TP/FP/FN</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {["Home Loan", "Auto Loan", "Personal Loan", "Mortgage"].map(c => {
+                      const m = class_metrics[c] || {precision: 0, recall: 0, f1_score: 0, tp: 0, fp: 0, fn: 0};
+                      return (
+                        <tr key={c}>
+                          <td style={{padding: '10px 4px', borderBottom: '1px solid var(--border-soft)', fontWeight: 600, color: 'var(--text-mid)'}}>{c}</td>
+                          <td style={{padding: '10px 4px', borderBottom: '1px solid var(--border-soft)', fontFamily: 'var(--font-mono)', textAlign: 'right'}}>{m.precision}%</td>
+                          <td style={{padding: '10px 4px', borderBottom: '1px solid var(--border-soft)', fontFamily: 'var(--font-mono)', textAlign: 'right'}}>{m.recall}%</td>
+                          <td style={{padding: '10px 4px', borderBottom: '1px solid var(--border-soft)', fontFamily: 'var(--font-mono)', color: 'var(--teal)', fontWeight: 'bold', textAlign: 'right'}}>{m.f1_score}%</td>
+                          <td style={{padding: '10px 4px', borderBottom: '1px solid var(--border-soft)', color: 'var(--text-low)', fontSize: 11, textAlign: 'right'}}>{m.tp}/{m.fp}/{m.fn}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+            </div>
+          </div>
+        </div>
+
+        <div style={{display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1.1fr)', gap: 24, marginTop: 28}}>
+          <ConfusionMatrixHeatmap matrix={matrixArray} labels={classes} />
+          <TriggerCooccurrenceMatrix triggerNames={triggerNames} coMatrix={coMatrix} />
+        </div>
       </div>
+    );
+  }
 
-      {loading && <div style={{display:'flex',justifyContent:'center',padding:60}}><div className="spinner"></div></div>}
+    if (subTab === 'fairness' && fairnessData) {
+      const {segments, best_performing_segment, best_conversion_rate_pct, flagged_segments, recommendation_summary} = fairnessData;
+      return (
+        <div>
+          <h3>Dynamic Fairness & Bias Audit</h3>
+          <p style={{fontSize: 13, color: 'var(--text-mid)', marginBottom: 20}}>
+            Monitors lending conversion rates across demographics. If any segment underperforms the best segment by <b>20 percentage points or more</b>, it triggers an algorithmic warning.
+          </p>
 
-      {!loading && tab === 'fairness' && d && (
-        <>
-          <div className="section-title"><span className="dot"></span>Segment Conversion Fairness</div>
-          <div className="gov-grid">
-            {d.segments.map(s => (
-              <div key={s.segment_name} className="gov-card">
-                <div className="gc-label">{s.segment_name}</div>
-                <div className="gc-value" style={{color: s.is_underperforming ? 'var(--red)' : 'var(--teal)'}}>{s.conversion_rate_pct.toFixed(1)}%</div>
-                <div className="gc-sub">{s.total_leads} leads / {s.total_customers} customers</div>
-                {s.is_underperforming && (
-                  <span className="status-pill flag">⚠ Underperforming by {s.gap_to_best_pp.toFixed(1)}pp</span>
-                )}
+          <div style={{display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: 24, alignItems: 'start'}}>
+            <div>
+              <h4 style={{margin: '0 0 12px'}}>Segment Conversion Rates</h4>
+              <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
+                {segments.map(seg => {
+                  const isBest = seg.segment_name === best_performing_segment;
+                  return (
+                    <div key={seg.segment_name} style={{background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 10, padding: 14}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13}}>
+                        <b>{seg.segment_name}</b>
+                        <span>
+                          {seg.total_leads} / {seg.total_customers} leads ({seg.conversion_rate_pct}%)
+                        </span>
+                      </div>
+                      <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                        <div style={{flex: 1, height: 8, background: 'var(--surface-3)', borderRadius: 4, overflow: 'hidden'}}>
+                          <div style={{
+                            width: `${seg.conversion_rate_pct}%`,
+                            height: '100%',
+                            background: seg.is_underperforming ? 'var(--red)' : 'var(--teal)'
+                          }}></div>
+                        </div>
+                        <span style={{fontSize: 11, fontFamily: 'var(--font-mono)', color: seg.is_underperforming ? 'var(--red)' : 'var(--text-mid)'}}>
+                          {isBest ? 'BEST' : `-${seg.gap_to_best_pp}pp`}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-          <div className="section-title" style={{marginTop:32}}><span className="dot"></span>Recommendations</div>
-          <div style={{background:'var(--surface)',border:'1px solid var(--border-soft)',borderRadius:12,padding:20,fontSize:13.5,lineHeight:1.7,color:'var(--text-mid)'}}>
-            {d.recommendation_summary}
-          </div>
-        </>
-      )}
+            </div>
 
-      {!loading && tab === 'compliance' && d && (
-        <>
-          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:24}}>
-            <span className={`status-pill ${d.compliance_status === 'COMPLIANT' ? 'compliant' : 'review'}`}>
-              {d.compliance_status === 'COMPLIANT' ? '✓' : '◌'} {d.compliance_status}
-            </span>
-            <span style={{fontSize:13,color:'var(--text-mid)'}}>{d.overall_summary}</span>
-          </div>
-          <div className="gov-grid">
-            {Object.entries(d.standards).map(([key, std]) => (
-              <div key={key} className="gov-card">
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
-                  <div className="gc-label">{key.replace(/_/g,' ')}</div>
-                  <span className={`status-pill ${std.status === 'COMPLIANT' ? 'compliant' : std.status === 'PARTIAL' ? 'review' : 'flag'}`}>
-                    {std.status}
-                  </span>
+            <div>
+              <h4 style={{margin: '0 0 12px'}}>Fairness Gaps & Interventions</h4>
+              <div style={{background: flagged_segments.length ? 'rgba(229,72,77,0.06)' : 'rgba(22,194,174,0.06)', border: `1px solid ${flagged_segments.length ? 'rgba(229,72,77,0.3)' : 'rgba(22,194,174,0.3)'}`, borderRadius: 12, padding: 18}}>
+                <div style={{fontWeight: 600, fontSize: 14, color: flagged_segments.length ? '#F2A0A2' : 'var(--teal)', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12}}>
+                  <span style={{width: 8, height: 8, borderRadius: '50%', background: flagged_segments.length ? 'var(--red)' : 'var(--teal)'}}></span>
+                  {flagged_segments.length ? 'Bias Alert Triggered' : 'Fairness Standard Met'}
                 </div>
-                <div className="gc-sub">{std.description}</div>
-                {std.gaps.length > 0 && (
-                  <div style={{fontSize:11.5,color:'var(--red)',marginTop:4}}>
-                    {std.gaps.slice(0,2).map((g,i) => <div key={i}>• {g}</div>)}
+                <p style={{fontSize: 12.5, lineHeight: 1.5, margin: '0 0 14px', color: 'var(--text-hi)'}}>
+                  {recommendation_summary}
+                </p>
+                {flagged_segments.map((f, i) => (
+                  <div key={i} style={{fontSize: 12, borderTop: '1px solid var(--border-soft)', paddingTop: 10, marginTop: 10, color: 'var(--text-mid)'}}>
+                    <b>{f.segment_name} Recommendation:</b><br/>{f.recommendation}
                   </div>
-                )}
+                ))}
               </div>
-            ))}
+            </div>
           </div>
-          <div className="section-title" style={{marginTop:32}}><span className="dot"></span>Governance Notes</div>
-          <div style={{background:'var(--surface)',border:'1px solid var(--border-soft)',borderRadius:12,padding:20,fontSize:13.5,lineHeight:1.7,color:'var(--text-mid)'}}>
-            {d.governance_notes}
-          </div>
-        </>
-      )}
+        </div>
+      );
+    }
 
-      {!loading && tab === 'roi' && d && (
-        <>
-          <div className="gov-grid" style={{marginBottom:32}}>
-            <div className="gov-card">
-              <div className="gc-label">Expected Revenue</div>
-              <div className="gc-value" style={{color:'var(--teal)'}}>{fmtINR(d.estimated_revenue)}</div>
-              <div className="gc-sub">from {d.total_leads} qualified leads</div>
+    if (subTab === 'compliance' && complianceData) {
+      const {compliance_status, standards, overall_summary, recommendations, gaps} = complianceData;
+      return (
+        <div>
+          <h3>Regulatory Compliance Matrix</h3>
+          <p style={{fontSize: 13, color: 'var(--text-mid)', marginBottom: 20}}>
+            Audits LENS against statutory frameworks: India's Digital Personal Data Protection (DPDP) Act 2023 and RBI Digital Lending Guidelines.
+          </p>
+
+          <div style={{display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: 24, alignItems: 'start'}}>
+            <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
+              {Object.entries(standards).map(([key, std]) => {
+                const isCompliant = std.status === 'Compliant';
+                return (
+                  <div key={key} style={{background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 18}}>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8}}>
+                      <h4 style={{margin: 0, fontSize: 14, fontFamily: 'var(--font-display)'}}>{key.replace(/_/g, ' ')}</h4>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        background: isCompliant ? 'rgba(22,194,174,0.12)' : 'rgba(242,135,12,0.12)',
+                        color: isCompliant ? 'var(--teal)' : 'var(--amber)'
+                      }}>{std.status.toUpperCase()}</span>
+                    </div>
+                    <p style={{fontSize: 12, color: 'var(--text-low)', margin: '0 0 10px'}}>{std.description} — {std.considerations}</p>
+                    {std.gaps.length > 0 && (
+                      <div style={{fontSize: 12, marginTop: 10}}>
+                        <b style={{color: 'var(--red)'}}>Detected Gaps:</b>
+                        <ul style={{margin: '4px 0 10px', paddingLeft: 20, color: 'var(--text-mid)'}}>
+                          {std.gaps.map((g, idx) => <li key={idx} style={{marginBottom: 3}}>{g}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    <div style={{fontSize: 12}}>
+                      <b style={{color: 'var(--teal)'}}>Compliance Action:</b>
+                      <ul style={{margin: '4px 0 0', paddingLeft: 20, color: 'var(--text-mid)'}}>
+                        {std.recommendations.map((r, idx) => <li key={idx} style={{marginBottom: 3}}>{r}</li>)}
+                      </ul>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div className="gov-card">
-              <div className="gc-label">Outreach Cost</div>
-              <div className="gc-value" style={{color:'var(--amber)'}}>{fmtINR(d.estimated_cost)}</div>
-              <div className="gc-sub">total campaign spend</div>
-            </div>
-            <div className="gov-card">
-              <div className="gc-label">ROI Multiplier</div>
-              <div className="gc-value" style={{color:'var(--green)'}}>{d.roi_multiplier.toFixed(1)}×</div>
-              <div className="gc-sub">net profit {fmtINR(d.net_profit)}</div>
+
+            <div>
+              <h4 style={{margin: '0 0 12px'}}>Audit Summary</h4>
+              <div style={{background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 12, padding: 18}}>
+                <div style={{fontSize: 14, fontWeight: 600, color: compliance_status === 'Compliant' ? 'var(--teal)' : 'var(--amber)', marginBottom: 8}}>
+                  Status: {compliance_status}
+                </div>
+                <p style={{fontSize: 13, lineHeight: 1.5, color: 'var(--text-mid)', margin: '0 0 14px'}}>
+                  {overall_summary}
+                </p>
+                <div style={{fontSize: 12, borderTop: '1px solid var(--border-soft)', paddingTop: 12}}>
+                  <b>System Gaps ({gaps.length})</b>
+                  <ol style={{margin: '6px 0 0', paddingLeft: 18, color: 'var(--text-low)', lineHeight: 1.4}}>
+                    {gaps.map((g, i) => <li key={i} style={{marginBottom: 6}}>{g}</li>)}
+                  </ol>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="section-title"><span className="dot"></span>Segment ROI Breakdown</div>
-          <table className="segment-table" style={{background:'var(--surface)',borderRadius:12,overflow:'hidden'}}>
+        </div>
+      );
+    }
+
+    if (subTab === 'sandbox' && sandboxData) {
+      const {schema_version, validation_notes, mappings, missing_mappings} = sandboxData;
+      return (
+        <div>
+          <h3>Sandbox API Schema Mapping</h3>
+          <p style={{fontSize: 13, color: 'var(--text-mid)', marginBottom: 20}}>
+            Schema mappings and data transformations matching standard core banking / aggregator API schemas. Schema Version: <b>{schema_version}</b>.
+          </p>
+
+          <table className="txn-table" style={{width: '100%'}}>
             <thead>
               <tr>
-                <th>Segment</th><th>Leads</th><th>Conv %</th><th>Revenue</th><th>Cost</th><th>ROI</th>
+                <th style={{padding: '10px 12px'}}>Internal Field</th>
+                <th style={{padding: '10px 12px'}}>Sandbox Field</th>
+                <th style={{padding: '10px 12px'}}>Transformation</th>
+                <th style={{padding: '10px 12px'}}>Validation Rules</th>
+                <th style={{padding: '10px 12px', textAlign: 'right'}}>Status</th>
               </tr>
             </thead>
             <tbody>
-              {d.segment_performance.map(s => (
-                <tr key={s.segment_name}>
-                  <td style={{color:'var(--text-hi)',fontWeight:600}}>{s.segment_name}</td>
-                  <td>{s.total_leads}</td>
-                  <td style={{color:'var(--teal)'}}>{s.conversion_rate_pct.toFixed(1)}%</td>
-                  <td style={{fontFamily:'var(--font-mono)'}}>{fmtINR(s.expected_revenue)}</td>
-                  <td style={{fontFamily:'var(--font-mono)'}}>{fmtINR(s.estimated_outreach_cost)}</td>
-                  <td style={{color: s.roi_pct > 0 ? 'var(--green)' : 'var(--red)', fontWeight:600}}>
-                    {s.roi_pct.toFixed(0)}%
-                  </td>
+              {mappings.map((m, idx) => (
+                <tr key={idx}>
+                  <td style={{fontFamily: 'var(--font-mono)', fontSize: 12}}>{m.internal_field}</td>
+                  <td style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--teal)'}}>{m.sandbox_field}</td>
+                  <td>{m.transformation}</td>
+                  <td style={{fontSize: 11.5, color: 'var(--text-low)'}}>{m.validation_rules}</td>
+                  <td style={{textAlign: 'right'}}><span className="txn-type-tag" style={{background: 'rgba(22,194,174,0.1)', color: 'var(--teal)'}}>{m.status}</span></td>
+                </tr>
+              ))}
+              {missing_mappings.map((m, idx) => (
+                <tr key={idx} style={{opacity: 0.6}}>
+                  <td style={{fontFamily: 'var(--font-mono)', fontSize: 12}}>{m.internal_field}</td>
+                  <td style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-low)'}}>{m.sandbox_field}</td>
+                  <td style={{color: 'var(--text-low)'}}>Excluded</td>
+                  <td style={{fontSize: 11.5, color: 'var(--text-low)'}}>{m.reason}</td>
+                  <td style={{textAlign: 'right'}}><span className="txn-type-tag" style={{background: 'var(--surface-3)', color: 'var(--text-low)'}}>skipped</span></td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </>
-      )}
+          <div style={{marginTop: 18, fontSize: 12, color: 'var(--text-low)'}}>
+            <b>Validation Notes:</b> {validation_notes}
+          </div>
+        </div>
+      );
+    }
+
+    if (subTab === 'roi' && roiData) {
+      const {total_customers, total_leads, conversion_rate_pct, estimated_revenue, estimated_cost, net_profit, roi_multiplier, segment_performance, cost_assumptions} = roiData;
+      return (
+        <div>
+          <h3>Dynamic Business ROI Optimization</h3>
+          <p style={{fontSize: 13, color: 'var(--text-mid)', marginBottom: 20}}>
+            Financial projections based on current scans. Assess computation costs vs expected loan interest margins.
+          </p>
+
+          <div className="metric-grid" style={{marginBottom: 24}}>
+            <div className="metric-card">
+              <div className="l">Total Cost</div>
+              <div className="v">{fmtINR(estimated_cost)}</div>
+              <div className="d">Compute + outreach cost</div>
+            </div>
+            <div className="metric-card">
+              <div className="l">Expected Revenue</div>
+              <div className="v">{fmtINR(estimated_revenue)}</div>
+              <div className="d">Yield from projected disbursals</div>
+            </div>
+            <div className="metric-card" style={{borderColor: 'var(--teal-dim)'}}>
+              <div className="l">Expected Net Profit / ROI</div>
+              <div className="v" style={{color: 'var(--teal)'}}>{fmtINR(net_profit)} <span style={{fontSize: 12, color: 'var(--text-low)', fontWeight: 500}}>({roi_multiplier}x)</span></div>
+              <div className="d">Projections on current database</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: 24, marginBottom: 28, alignItems: 'center' }}>
+            <PipelineFunnel stages={funnelStages} />
+            <RoiDonut 
+              assessmentCost={total_customers * (cost_assumptions?.cost_per_assessment || 5.0)}
+              outreachCost={total_leads * (cost_assumptions?.cost_per_outreach || 50.0)}
+              netProfit={net_profit}
+            />
+          </div>
+
+          <h4 style={{margin: '0 0 10px'}}>ROI Breakdown by Customer Segment</h4>
+          <table className="txn-table" style={{width: '100%'}}>
+            <thead>
+              <tr>
+                <th style={{padding: '10px 12px'}}>Segment</th>
+                <th style={{padding: '10px 12px', textAlign: 'center'}}>Customers</th>
+                <th style={{padding: '10px 12px', textAlign: 'center'}}>Leads</th>
+                <th style={{padding: '10px 12px', textAlign: 'center'}}>Outreach Cost</th>
+                <th style={{padding: '10px 12px', textAlign: 'center'}}>Projected Revenue</th>
+                <th style={{padding: '10px 12px', textAlign: 'right'}}>Projected ROI</th>
+              </tr>
+            </thead>
+            <tbody>
+              {segment_performance.map((s, idx) => (
+                <tr key={idx}>
+                  <td><b>{s.segment_name}</b></td>
+                  <td style={{textAlign: 'center'}}>{s.total_customers}</td>
+                  <td style={{textAlign: 'center'}}>{s.total_leads} ({s.conversion_rate_pct}%)</td>
+                  <td style={{textAlign: 'center', fontFamily: 'var(--font-mono)'}}>{fmtINR(s.estimated_outreach_cost)}</td>
+                  <td style={{textAlign: 'center', fontFamily: 'var(--font-mono)', color: 'var(--teal)'}}>{fmtINR(s.expected_revenue)}</td>
+                  <td style={{textAlign: 'right', fontWeight: 600, color: s.roi_pct > 0 ? 'var(--teal)' : 'var(--text-hi)'}}>{s.roi_pct}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{marginTop: 18, background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 10, padding: 12, fontSize: 11.5, color: 'var(--text-low)', display: 'flex', gap: 20}}>
+            <div><b>Assumptions:</b></div>
+            <div>Scoring Cost: {fmtINR(cost_assumptions.cost_per_assessment)}/cust</div>
+            <div>Outreach Cost: {fmtINR(cost_assumptions.cost_per_outreach)}/lead</div>
+            <div>Closing Probability: {cost_assumptions.expected_conversion_rate * 100}%</div>
+            <div>Average Loan: {fmtINR(cost_assumptions.average_loan_amount)}</div>
+            <div>Net Profit Yield: {cost_assumptions.net_yield_margin * 100}%</div>
+          </div>
+        </div>
+      );
+    }
+
+    if (subTab === 'sentry') {
+      const data = sentryData;
+      return (
+        <div>
+          <h3>SENTRY — Anomaly Detection</h3>
+          <p style={{fontSize:13, color:'var(--text-mid)', marginBottom:20}}>
+            Unsupervised IsolationForest over 7 transaction features (volume, timing, night-ratio, weekend-ratio, counterparty diversity).
+            Anomalous leads are flagged and their trust score is docked by 15 points.
+          </p>
+          {!data ? (
+            <div style={{color:'var(--text-low)', fontSize:13, fontStyle:'italic'}}>Loading SENTRY report…</div>
+          ) : (
+            <>
+              <div className="metric-grid" style={{marginBottom:24}}>
+                <div className="metric-card">
+                  <div className="l">Total Leads</div>
+                  <div className="v">{data.total_leads}</div>
+                  <div className="d">In pipeline</div>
+                </div>
+                <div className="metric-card">
+                  <div className="l">Anomalous</div>
+                  <div className="v" style={{color:'#ef4444'}}>{data.flagged_count}</div>
+                  <div className="d">IsolationForest flagged</div>
+                </div>
+                <div className="metric-card">
+                  <div className="l">Flag Rate</div>
+                  <div className="v">{data.total_leads ? (data.flagged_count/data.total_leads*100).toFixed(1) : 0}%</div>
+                  <div className="d">Contamination threshold: 5%</div>
+                </div>
+              </div>
+              {data.flagged_leads && data.flagged_leads.length > 0 ? (
+                <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%', borderCollapse:'collapse', fontSize:13}}>
+                    <thead>
+                      <tr style={{borderBottom:'1px solid var(--border)', color:'var(--text-low)', textAlign:'left'}}>
+                        <th style={{padding:'8px 12px'}}>Customer ID</th>
+                        <th style={{padding:'8px 12px'}}>Name</th>
+                        <th style={{padding:'8px 12px'}}>Employment</th>
+                        <th style={{padding:'8px 12px'}}>Tier</th>
+                        <th style={{padding:'8px 12px', textAlign:'right'}}>Trust Score</th>
+                        <th style={{padding:'8px 12px', textAlign:'right'}}>Fraud Risk</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.flagged_leads.map(r => (
+                        <tr key={r.customer_id} style={{borderBottom:'1px solid var(--border-soft)'}}>
+                          <td style={{padding:'10px 12px', fontFamily:'var(--font-mono)', fontSize:12}}>{r.customer_id}</td>
+                          <td style={{padding:'10px 12px'}}>{r.name}</td>
+                          <td style={{padding:'10px 12px', color:'var(--text-mid)'}}>{r.employment_type}</td>
+                          <td style={{padding:'10px 12px'}}><span className="loan-chip" style={{fontSize:11, padding:'3px 10px'}}>{r.tier}</span></td>
+                          <td style={{padding:'10px 12px', textAlign:'right', fontFamily:'var(--font-mono)'}}>{r.trust_score?.toFixed(1)}</td>
+                          <td style={{padding:'10px 12px', textAlign:'right', fontFamily:'var(--font-mono)', color:'#ef4444', fontWeight:700}}>{r.fraud_risk_score?.toFixed(1)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{color:'var(--text-low)', fontStyle:'italic', fontSize:13}}>
+                  No anomalous leads detected in current dataset. Regenerate data or SENTRY scores may not have run yet.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      );
+    }
+  };
+
+  return (
+    <div style={{padding: '24px 32px', overflowY: 'auto', overflowX: 'hidden', flex: 1}}>
+      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-soft)', paddingBottom: 16, marginBottom: 20}}>
+        <div>
+          <h2 style={{fontFamily: 'var(--font-display)', fontSize: 22, margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 10}}>
+            <IconShield style={{color: 'var(--teal)'}} /> Algorithmic Governance &amp; Analytics
+          </h2>
+          <div style={{fontSize: 12.5, color: 'var(--text-mid)'}}>Compliance, model self-evaluation metrics, fairness analysis, SENTRY anomaly detection, and ROI optimizer</div>
+        </div>
+      </div>
+
+      {/* AI Governance Ask Bar */}
+      <div style={{background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:'14px 18px', marginBottom:18, display:'flex', flexDirection:'column', gap:10}}>
+        <div style={{fontSize:12, fontWeight:600, color:'var(--teal)', letterSpacing:'0.05em', textTransform:'uppercase', display:'flex', alignItems:'center', gap:6}}>
+          <span style={{fontSize:16}}>✦</span> LENS AI — Ask a Governance Question
+        </div>
+        <div style={{display:'flex', gap:8, alignItems:'center'}}>
+          <input
+            id="gov-ask-input"
+            type="text"
+            placeholder="e.g. Are there fairness gaps across employment types? or Which Tier 1 leads have highest fraud risk?"
+            value={askQuestion}
+            onChange={e => setAskQuestion(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && submitAsk()}
+            style={{flex:1, background:'var(--surface-2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 14px', color:'var(--text)', fontSize:13, outline:'none'}}
+          />
+          <button
+            id="gov-ask-submit"
+            onClick={submitAsk}
+            disabled={askLoading || !askQuestion.trim()}
+            style={{background:'var(--teal)', border:'none', borderRadius:8, color:'#fff', padding:'10px 18px', fontSize:13, fontWeight:600, cursor:'pointer', minWidth:80, opacity: (askLoading||!askQuestion.trim()) ? 0.5 : 1}}
+          >
+            {askLoading ? '…' : 'Ask'}
+          </button>
+        </div>
+        {askAnswer && (
+          <div style={{background:'rgba(22,194,174,0.06)', border:'1px solid rgba(22,194,174,0.2)', borderRadius:10, padding:'12px 14px', fontSize:13.5, color:'var(--text)', lineHeight:1.7, whiteSpace:'pre-wrap'}}>
+            {askAnswer}
+          </div>
+        )}
+        {!askAnswer && (
+          <div style={{fontSize:11.5, color:'var(--text-low)'}}>Requires ANTHROPIC_API_KEY to be set on the server. admin and analyst roles only.</div>
+        )}
+      </div>
+
+      <div style={{display: 'flex', gap: 6, marginBottom: 20, flexWrap:'wrap'}}>
+        {[
+          {id: 'evaluation', label: 'Model Evaluation'},
+          {id: 'fairness', label: 'Fairness Audit'},
+          {id: 'compliance', label: 'DPDP / RBI Compliance'},
+          {id: 'sandbox', label: 'Sandbox Schema'},
+          {id: 'roi', label: 'Business ROI'},
+          {id: 'sentry', label: '🛡 SENTRY Anomaly'}
+        ].map(t => (
+          <div key={t.id} className={`chip ${subTab === t.id ? 'active' : ''}`} onClick={() => setSubTab(t.id)}>
+            {t.label}
+          </div>
+        ))}
+      </div>
+
+      <div style={{background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 16, padding: '24px 28px', minHeight: 400, overflow: 'hidden'}}>
+        {renderContent()}
+      </div>
     </div>
   );
 }
@@ -1074,7 +2719,6 @@ function AdminPanel({token, onUnauthorized, showToast}) {
         )}
       </div>
 
-      {/* ---------- Create User Modal ---------- */}
       {showCreateModal && (
         <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -1123,7 +2767,7 @@ function AdminPanel({token, onUnauthorized, showToast}) {
 }
 
 /* ---------- Leads View ---------- */
-function LeadsView({stats, leads, selected, setSelected, loading, sort, setSort, tierFilter, setTierFilter, search, setSearch, auth, token, onUnauthorized, generating, handleRegenerate, setShowCustomerModal, setShowTxnModal, setModalFormError}) {
+function LeadsView({stats, leads, allLeads = [], selected, setSelected, loading, sort, setSort, tierFilter, setTierFilter, search, setSearch, auth, token, onUnauthorized, generating, handleRegenerate, setShowCustomerModal, setShowTxnModal, setModalFormError}) {
   return (
     <>
       <KPIStrip stats={stats} />
@@ -1148,6 +2792,7 @@ function LeadsView({stats, leads, selected, setSelected, loading, sort, setSort,
           </div>
           <div className="queue-list">
             {loading ? <div style={{padding:30, textAlign:'center'}}><div className="spinner" style={{margin:'0 auto'}}></div></div> :
+              allLeads.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads yet — click Regenerate &amp; Rescan to populate the console.</div> :
               leads.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads match this filter.</div> :
               leads.map(l => (
                 <LeadCard key={l.customer_id} lead={l} selected={selected===l.customer_id} onClick={()=>setSelected(l.customer_id)} />
@@ -1156,7 +2801,14 @@ function LeadsView({stats, leads, selected, setSelected, loading, sort, setSort,
           </div>
         </div>
         <div className="detail">
-          <DetailPanel customerId={selected} token={token} onUnauthorized={onUnauthorized} />
+          {generating ? (
+            <div style={{ padding: 40, background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 16 }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', marginBottom: 20, color: 'var(--text-hi)' }}>Live Transaction Ingestion &amp; Pipeline Scan</h3>
+              <LiveScanAnimation active={generating} />
+            </div>
+          ) : (
+            <DetailPanel customerId={selected} token={token} onUnauthorized={onUnauthorized} />
+          )}
         </div>
       </div>
     </>
@@ -1182,7 +2834,9 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [connError, setConnError] = useState(null);
+  const [regenError, setRegenError] = useState(null);
   const [toast, setToast] = useState(null);
+  const generationInFlightRef = useRef(false);
 
   const [usersRegistered, setUsersRegistered] = useState(0);
   const [authMode, setAuthMode] = useState('login');
@@ -1211,6 +2865,7 @@ function App() {
   const handleUnauthorized = useCallback(() => {
     setAuth(null);
     localStorage.removeItem(storageKey);
+    setAuthError("Session expired — please log in again");
   }, []);
 
   const checkUsers = useCallback(() => {
@@ -1253,6 +2908,21 @@ function App() {
 
   useEffect(() => { if (auth) loadAll(); }, [loadAll, auth]);
 
+  const waitForGenerationToFinish = useCallback((attempt = 0) => {
+    return fetch(`${API_BASE}/api/health`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.is_generating && attempt < 90) {
+          return new Promise(resolve => setTimeout(resolve, 2000))
+            .then(() => waitForGenerationToFinish(attempt + 1));
+        }
+        if (d.is_generating) {
+          throw new Error('Generation is still running. Restart the backend if this does not clear.');
+        }
+        return d;
+      });
+  }, []);
+
   const handleAuthSubmit = (e) => {
     e.preventDefault();
     setAuthError(null);
@@ -1293,19 +2963,46 @@ function App() {
     });
   };
 
-  const handleRegenerate = () => {
-    if (!auth) return;
+  const handleRegenerate = async () => {
+    if (!auth || generationInFlightRef.current) return;
+    generationInFlightRef.current = true;
     setGenerating(true);
-    fetch(`${API_BASE}/api/generate?n_customers=150`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${auth.token}` }
-    })
-      .then(r => {
+    setRegenError(null);
+    try {
+      const r = await fetch(`${API_BASE}/api/generate?n_customers=150`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${auth.token}` }
+      });
+
         if (r.status === 401) { handleUnauthorized(); throw new Error('unauthorized'); }
-        return r.json();
-      })
-      .then(() => { setGenerating(false); setSelected(null); loadAll(); showToast('Dataset regenerated successfully', 'success'); })
-      .catch(() => setGenerating(false));
+        if (r.status === 409) {
+          const data = await r.json().catch(() => ({}));
+          const rawDetail = data.detail;
+          const detail = typeof rawDetail === 'string'
+            ? rawDetail
+            : rawDetail?.message || "Database generation is already in progress. Please wait.";
+          setRegenError(`${detail} Refreshing automatically when it finishes.`);
+          await waitForGenerationToFinish();
+          setRegenError(null);
+          showToast('Existing scan finished. Dashboard refreshed.', 'success');
+        } else {
+          if (!r.ok) {
+            const data = await r.json().catch(() => ({}));
+            throw new Error(data.detail || 'Generation failed');
+          }
+          await r.json();
+          showToast('Dataset regenerated successfully', 'success');
+        }
+      setSelected(null);
+      loadAll();
+    } catch (err) {
+      if (err.message !== 'unauthorized') {
+        setRegenError(err.message || 'Generation failed');
+      }
+    } finally {
+      generationInFlightRef.current = false;
+      setGenerating(false);
+    }
   };
 
   const handleCreateCustomerSubmit = (e) => {
@@ -1456,13 +3153,20 @@ function App() {
 
   const tabs = [
     { id: 'leads', label: 'Lead Console', icon: <IconList /> },
+    { id: 'compare', label: 'Compare Leads', icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+        <line x1="12" y1="3" x2="12" y2="17" />
+        <line x1="12" y1="21" x2="12" y2="21" />
+      </svg>
+    )},
     { id: 'governance', label: 'Governance', icon: <IconShield /> },
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: <IconAdmin /> }] : []),
   ];
 
   /* ---- Main app ---- */
   return (
-    <div className="app">
+    <div className="app dashboard-bg">
       {/* Sidebar */}
       <div className="sidebar">
         <div className="brand-mark"><IconPulse style={{color:'var(--teal)'}}/></div>
@@ -1521,10 +3225,19 @@ function App() {
           </div>
         </div>
 
+        {regenError && (
+          <div className="error-banner" style={{margin: '18px 32px 0 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+            <span>{regenError}</span>
+            <button style={{background:'transparent', border:'none', color:'inherit', cursor:'pointer', fontSize:16}} onClick={() => setRegenError(null)}>&times;</button>
+          </div>
+        )}
+
+        <ArchitectureFlow />
+
         {/* Tab content */}
         {activeTab === 'leads' && (
           <LeadsView
-            stats={stats} leads={filtered} selected={selected} setSelected={setSelected}
+            stats={stats} leads={filtered} allLeads={leads} selected={selected} setSelected={setSelected}
             loading={loading} sort={sort} setSort={setSort} tierFilter={tierFilter}
             setTierFilter={setTierFilter} search={search} setSearch={setSearch}
             auth={auth} token={auth.token} onUnauthorized={handleUnauthorized}
@@ -1534,8 +3247,12 @@ function App() {
           />
         )}
 
+        {activeTab === 'compare' && (
+          <CompareLeadsWorkspace leads={leads} token={auth?.token} onUnauthorized={handleUnauthorized} />
+        )}
+
         {activeTab === 'governance' && (
-          <GovernancePanel token={auth.token} onUnauthorized={handleUnauthorized} />
+          <GovernanceDashboard leads={leads} stats={stats} token={auth?.token} onUnauthorized={handleUnauthorized} />
         )}
 
         {activeTab === 'admin' && isAdmin && (

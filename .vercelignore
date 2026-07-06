@@ -1,0 +1,9 @@
+.venv/
+venv/
+env/
+.git/
+.pytest_cache/
+tests/
+*.db
+*.sqlite3
+node_modules/
