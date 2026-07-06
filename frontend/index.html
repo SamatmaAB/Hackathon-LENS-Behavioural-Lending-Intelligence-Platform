@@ -2570,7 +2570,7 @@ function AdminPanel({token, onUnauthorized, showToast}) {
 }
 
 /* ---------- Leads View ---------- */
-function LeadsView({stats, leads, selected, setSelected, loading, sort, setSort, tierFilter, setTierFilter, search, setSearch, auth, token, onUnauthorized, generating, handleRegenerate, setShowCustomerModal, setShowTxnModal, setModalFormError}) {
+function LeadsView({stats, leads, allLeads = [], selected, setSelected, loading, sort, setSort, tierFilter, setTierFilter, search, setSearch, auth, token, onUnauthorized, generating, handleRegenerate, setShowCustomerModal, setShowTxnModal, setModalFormError}) {
   return (
     <>
       <KPIStrip stats={stats} />
@@ -2595,9 +2595,9 @@ function LeadsView({stats, leads, selected, setSelected, loading, sort, setSort,
           </div>
           <div className="queue-list">
             {loading ? <div style={{padding:30, textAlign:'center'}}><div className="spinner" style={{margin:'0 auto'}}></div></div> :
-              leads.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads yet — click Regenerate &amp; Rescan to populate the console.</div> :
-              filtered.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads match this filter.</div> :
-              filtered.map(l => (
+              allLeads.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads yet — click Regenerate &amp; Rescan to populate the console.</div> :
+              leads.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads match this filter.</div> :
+              leads.map(l => (
                 <LeadCard key={l.customer_id} lead={l} selected={selected===l.customer_id} onClick={()=>setSelected(l.customer_id)} />
               ))
             }
@@ -3005,7 +3005,7 @@ function App() {
         {/* Tab content */}
         {activeTab === 'leads' && (
           <LeadsView
-            stats={stats} leads={filtered} selected={selected} setSelected={setSelected}
+            stats={stats} leads={filtered} allLeads={leads} selected={selected} setSelected={setSelected}
             loading={loading} sort={sort} setSort={setSort} tierFilter={tierFilter}
             setTierFilter={setTierFilter} search={search} setSearch={setSearch}
             auth={auth} token={auth.token} onUnauthorized={handleUnauthorized}
