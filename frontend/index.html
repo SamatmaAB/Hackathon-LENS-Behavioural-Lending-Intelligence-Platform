@@ -829,7 +829,7 @@ function TransactionSpikeChart({ dailyVolumes, triggerDays }) {
     .join(" ");
 
   return (
-    <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginBottom: 24 }}>
+    <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginTop: 24, marginBottom: 24 }}>
       <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 12 }}>90-Day Transaction Volume & Fired Triggers</div>
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
         <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="var(--border-soft)" strokeWidth="1.5" />
