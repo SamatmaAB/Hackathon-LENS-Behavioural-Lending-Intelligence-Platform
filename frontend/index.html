@@ -2399,6 +2399,170 @@ function GovernanceDashboard({leads, stats, token, onUnauthorized}) {
   );
 }
 
+/* ---------- Admin Panel ---------- */
+function AdminPanel({token, onUnauthorized, showToast}) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'relationship_manager' });
+  const [error, setError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const loadUsers = useCallback(() => {
+    fetch(`${API_BASE}/api/users`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => {
+        if (r.status === 401) { onUnauthorized(); throw new Error('unauthorized'); }
+        return r.json();
+      })
+      .then(data => { setUsers(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => { setLoading(false); });
+  }, [token, onUnauthorized]);
+
+  useEffect(() => { loadUsers(); }, [loadUsers]);
+
+  const handleDelete = (userId, userName) => {
+    if (!window.confirm(`Remove user "${userName}"? This action cannot be undone.`)) return;
+    fetch(`${API_BASE}/api/users/${userId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(async r => {
+        if (r.status === 401) { onUnauthorized(); return; }
+        const d = await r.json();
+        if (d.status === 'deleted') {
+          setUsers(prev => prev.filter(u => u.user_id !== userId));
+          showToast(`User "${userName}" removed`, 'success');
+        }
+      })
+      .catch(() => showToast('Failed to delete user', 'error'));
+  };
+
+  const handleCreateUserSubmit = (e) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    fetch(`${API_BASE}/api/users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(form)
+    })
+      .then(async r => {
+        if (r.status === 401) { onUnauthorized(); return; }
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || 'Failed to create user');
+        return d;
+      })
+      .then(newUser => {
+        if (newUser) {
+          setUsers(prev => [newUser, ...prev]);
+          setShowCreateModal(false);
+          setForm({ name: '', email: '', password: '', role: 'relationship_manager' });
+          showToast(`User "${newUser.name}" created`, 'success');
+        }
+        setSubmitting(false);
+      })
+      .catch(err => {
+        setError(err.message);
+        setSubmitting(false);
+      });
+  };
+
+  const roleClass = (role) => role === 'admin' ? 'admin' : role === 'relationship_manager' ? 'rm' : 'analyst';
+  const roleTag = (role) => role === 'relationship_manager' ? 'RM' : role.charAt(0).toUpperCase() + role.slice(1);
+  const avatarInitials = (name) => name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+
+  if (loading) return <div className="admin-section"><div style={{display:'flex',justifyContent:'center',padding:60}}><div className="spinner"></div></div></div>;
+
+  return (
+    <div className="admin-section">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+        <div>
+          <div className="section-title" style={{margin:0}}><span className="dot"></span>User Management</div>
+          <div style={{fontSize:13,color:'var(--text-low)',marginTop:6}}>{users.length} registered user{users.length !== 1 ? 's' : ''}</div>
+        </div>
+        <button className="btn primary" onClick={() => { setError(null); setShowCreateModal(true); }}>
+          + Create User
+        </button>
+      </div>
+      <div className="admin-grid">
+        {users.map(u => (
+          <div key={u.user_id} className="admin-user-card">
+            <div className={`admin-user-avatar role-${roleClass(u.role)}`}>{avatarInitials(u.name)}</div>
+            <div className="admin-user-info">
+              <div className="admin-user-name">{u.name}</div>
+              <div className="admin-user-meta">{u.email}</div>
+              <div style={{marginTop:6}}>
+                <span className={`role-tag ${u.role}`}>{roleTag(u.role)}</span>
+              </div>
+            </div>
+            <div style={{marginLeft:'auto',fontSize:12,color:'var(--text-low)',textAlign:'right'}}>
+              <div>Joined</div>
+              <div style={{color:'var(--text-mid)'}}>{new Date(u.created_at).toLocaleDateString('en-IN')}</div>
+            </div>
+            <button
+              className="btn danger"
+              style={{padding:'7px 12px',fontSize:12}}
+              onClick={() => handleDelete(u.user_id, u.name)}
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        {users.length === 0 && (
+          <div style={{padding:40,textAlign:'center',color:'var(--text-low)',fontSize:13}}>No users found.</div>
+        )}
+      </div>
+
+      {showCreateModal && (
+        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Create New User Account</h3>
+              <button className="modal-close" onClick={() => setShowCreateModal(false)}>&times;</button>
+            </div>
+            {error && <div className="auth-error">{error}</div>}
+            <form onSubmit={handleCreateUserSubmit}>
+              <div className="auth-field">
+                <label>Full Name</label>
+                <input type="text" className="auth-input" required placeholder="e.g. Anand Sen"
+                  value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+              </div>
+              <div className="auth-field">
+                <label>Email Address</label>
+                <input type="email" className="auth-input" required placeholder="e.g. anand@idbibank.com"
+                  value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+              </div>
+              <div className="auth-field">
+                <label>Password</label>
+                <input type="password" className="auth-input" required minLength="8" placeholder="••••••••"
+                  value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
+              </div>
+              <div className="auth-field">
+                <label>Assigned Role</label>
+                <select className="auth-select" value={form.role}
+                  onChange={e => setForm({...form, role: e.target.value})}>
+                  <option value="relationship_manager">Relationship Manager</option>
+                  <option value="analyst">Analyst (Read-Only)</option>
+                  <option value="admin">Administrator</option>
+                </select>
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn" onClick={() => setShowCreateModal(false)}>Cancel</button>
+                <button type="submit" className="btn primary" disabled={submitting}>
+                  {submitting ? 'Creating…' : 'Create User'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- Leads View ---------- */
 function LeadsView({stats, leads, selected, setSelected, loading, sort, setSort, tierFilter, setTierFilter, search, setSearch, auth, token, onUnauthorized, generating, handleRegenerate, setShowCustomerModal, setShowTxnModal, setModalFormError}) {
   return (
