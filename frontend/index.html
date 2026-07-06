@@ -660,6 +660,8 @@ body{
 }
 </style>
 <link rel="stylesheet" href="apple_theme.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -850,62 +852,80 @@ function FairnessBarChart({ segments }) {
    precise cartographic trace of India's borders - coordinates are
    approximate and for visualization only. */
 function GeoDistributionMap({ cities }) {
+  const mapRef = useRef(null);
+  
+  useEffect(() => {
+    if (!mapRef.current || !window.L || !cities || cities.length === 0) return;
+    
+    // Clear the container in case React runs useEffect multiple times (strict mode or remounting)
+    if (mapRef.current._leaflet_id) {
+      mapRef.current._leaflet_id = null;
+      mapRef.current.innerHTML = '';
+    }
+    
+    // Initialize map focused on India
+    const map = L.map(mapRef.current).setView([22.5937, 78.9629], 4);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap',
+      className: 'map-tiles'
+    }).addTo(map);
+
+    const maxLeads = Math.max(...cities.map(c => c.lead_count), 1);
+    
+    const trustColor = (score) => {
+      if (score >= 70) return "#2dd4bf";
+      if (score >= 45) return "#f59e0b";
+      return "#ef4444";
+    };
+
+    cities.forEach(c => {
+      const radius = 6 + (c.lead_count / maxLeads) * 15;
+      const color = trustColor(c.avg_trust_score);
+      
+      const circle = L.circleMarker([c.lat, c.lng], {
+        radius: radius,
+        fillColor: color,
+        color: '#fff',
+        weight: 1.5,
+        opacity: 0.9,
+        fillOpacity: 0.75
+      }).addTo(map);
+      
+      circle.bindPopup(`<b>${c.city}</b><br>Leads: ${c.lead_count}<br>Avg Trust: ${c.avg_trust_score.toFixed(1)}`, {
+        className: 'custom-popup'
+      });
+    });
+    
+    return () => {
+      map.remove();
+    };
+  }, [cities]);
+
   if (!cities || cities.length === 0) {
     return <div className="empty-state">No geographic data yet - generate a dataset first.</div>;
   }
 
-  const w = 420, h = 460;
-  // Rough India bounding box for a simple linear projection
-  const LAT_MIN = 8, LAT_MAX = 35, LNG_MIN = 68, LNG_MAX = 97;
-
-  const project = (lat, lng) => {
-    const x = ((lng - LNG_MIN) / (LNG_MAX - LNG_MIN)) * (w - 40) + 20;
-    const y = h - (((lat - LAT_MIN) / (LAT_MAX - LAT_MIN)) * (h - 40) + 20);
-    return { x, y };
-  };
-
-  const maxLeads = Math.max(...cities.map(c => c.lead_count), 1);
-  const radius = (count) => 6 + (count / maxLeads) * 22;
-
-  // Trust score -> color, matching the existing tier palette
-  const trustColor = (score) => {
-    if (score >= 70) return "var(--tier1, #2dd4bf)";
-    if (score >= 45) return "var(--tier2, #f59e0b)";
-    return "var(--tier3, #6b7280)";
-  };
-
   return (
-    <div style={{ textAlign: "center" }}>
+    <div style={{ textAlign: "center", width: "100%" }}>
       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-low)",
                     textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 15 }}>
-        Lead Concentration by City (illustrative)
+        Lead Concentration by City
       </div>
-      <svg viewBox={`0 0 ${w} ${h}`} width="100%" style={{ maxWidth: 440, display: "block", margin: "0 auto" }}>
-        <rect x="10" y="10" width={w - 20} height={h - 20} rx="16"
-              fill="none" stroke="var(--border)" strokeDasharray="4 4" />
-        {cities.map((c, i) => {
-          const { x, y } = project(c.lat, c.lng);
-          const r = radius(c.lead_count);
-          return (
-            <g key={c.city}>
-              <circle cx={x} cy={y} r={r} fill={trustColor(c.avg_trust_score)} opacity="0.75" />
-              <circle cx={x} cy={y} r={r} fill="none" stroke={trustColor(c.avg_trust_score)} strokeWidth="1.5" />
-              <text x={x} y={y - r - 6} textAnchor="middle" fontSize="10"
-                    fill="var(--text-high, #e5e5e5)" fontWeight="600">
-                {c.city}
-              </text>
-              <text x={x} y={y + 4} textAnchor="middle" fontSize="10" fill="#fff" fontWeight="700">
-                {c.lead_count}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-      <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 10, fontSize: 11 }}>
-        <span><span style={{ color: "var(--tier1, #2dd4bf)" }}>{"\u25cf"}</span> Tier 1 avg trust</span>
-        <span><span style={{ color: "var(--tier2, #f59e0b)" }}>{"\u25cf"}</span> Tier 2 avg trust</span>
-        <span><span style={{ color: "var(--tier3, #6b7280)" }}>{"\u25cf"}</span> Tier 3 avg trust</span>
+      
+      <div ref={mapRef} style={{ width: '100%', height: '400px', borderRadius: '12px', zIndex: 0, border: '1px solid var(--border)' }}></div>
+      
+      <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 15, fontSize: 11 }}>
+        <span><span style={{ color: "#2dd4bf" }}>{"\u25cf"}</span> Tier 1 avg trust</span>
+        <span><span style={{ color: "#f59e0b" }}>{"\u25cf"}</span> Tier 2 avg trust</span>
+        <span><span style={{ color: "#ef4444" }}>{"\u25cf"}</span> Tier 3 avg trust</span>
       </div>
+      
+      <style dangerouslySetInnerHTML={{__html: `
+        .map-tiles { filter: brightness(0.9) contrast(1.1) invert(1) hue-rotate(200deg) saturate(0.3) brightness(1.2); }
+        .custom-popup .leaflet-popup-content-wrapper { background: var(--surface-2); color: var(--text-hi); border-radius: 8px; border: 1px solid var(--border-soft); }
+        .custom-popup .leaflet-popup-tip { background: var(--surface-2); }
+      `}} />
     </div>
   );
 }
