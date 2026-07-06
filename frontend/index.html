@@ -1060,7 +1060,7 @@ function CapacityWaterfall({ steps }) {
 function FoirBandChart({ bands, appliedFoir, loanType }) {
   if (!bands) return null;
   const w = 500, h = 200, barH = 30, gap = 22, pad = 130;
-  const scale = (w - pad - 20) / 60; // 0-60% FOIR range
+  const scale = (w - pad - 45) / 60; // 0-60% FOIR range with 45px right padding
 
   return (
     <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginBottom: 24, marginTop: 15 }}>
@@ -1086,7 +1086,13 @@ function FoirBandChart({ bands, appliedFoir, loanType }) {
                 <>
                   <line x1={pad + appliedFoir * scale} y1={y - 6} x2={pad + appliedFoir * scale} y2={y + barH + 6}
                         stroke="var(--red)" strokeWidth="2.5" />
-                  <text x={pad + appliedFoir * scale} y={y - 10} fontSize="10" fill="var(--red)" textAnchor="middle" fontWeight="700" fontFamily="var(--font-display)">
+                  <text x={pad + appliedFoir * scale + (appliedFoir >= 56 ? -6 : appliedFoir <= 4 ? 6 : 0)} 
+                        y={y - 10} 
+                        fontSize="10" 
+                        fill="var(--red)" 
+                        textAnchor={appliedFoir >= 56 ? "end" : appliedFoir <= 4 ? "start" : "middle"} 
+                        fontWeight="700" 
+                        fontFamily="var(--font-display)">
                     {appliedFoir}% applied
                   </text>
                 </>
