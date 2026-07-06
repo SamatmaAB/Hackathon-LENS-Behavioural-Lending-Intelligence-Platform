@@ -1538,6 +1538,11 @@ function DetailPanel({customerId, token, onUnauthorized}) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(null);
 
+  const lead = data?.lead;
+  const customer = data?.customer;
+  const transactions = data?.transactions || [];
+  const income_breakdown = data?.income_breakdown;
+
   useEffect(() => {
     if (!customerId || !token) return;
     setLoading(true); setErr(null);
@@ -1606,7 +1611,6 @@ function DetailPanel({customerId, token, onUnauthorized}) {
   if (loading || !data) return <div className="empty-state"><div className="spinner"></div></div>;
   if (err) return <div className="error-banner">{err}</div>;
 
-  const {customer, lead, transactions, income_breakdown} = data;
   if (!lead) {
     return (
       <div className="empty-state">
