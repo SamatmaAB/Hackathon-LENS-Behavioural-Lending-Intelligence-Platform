@@ -1248,6 +1248,23 @@ function LeadCard({lead, selected, onClick}) {
   );
 }
 
+const REAL_ESTATE_PAYEES = new Set(["Lodha Developers", "Godrej Properties", "DLF Homes", "Sub-Registrar Office", "HDFC Property Escrow", "Brigade Group"]);
+const AUTO_PAYEES = new Set(["Maruti Suzuki Arena", "Tata Motors Showroom", "Hyundai Dealership", "Mahindra Auto World", "TVS Motor Showroom"]);
+const EDU_PAYEES = new Set(["DPS School Fees", "VIT Vellore Fees", "Manipal University", "Byju's Tuition"]);
+const MEDICAL_PAYEES = new Set(["Apollo Hospitals", "Fortis Healthcare", "Manipal Hospital", "Star Health Insurance"]);
+const WEDDING_PAYEES = new Set(["Banquet Hall Booking", "Wedding Decor Co", "Jewellery Mart", "Catering Services"]);
+
+function isTriggerTxn(t) {
+  if (t.type === "EMI_DEBIT") return true;
+  if (REAL_ESTATE_PAYEES.has(t.counterparty)) return true;
+  if (AUTO_PAYEES.has(t.counterparty)) return true;
+  if (EDU_PAYEES.has(t.counterparty)) return true;
+  if (MEDICAL_PAYEES.has(t.counterparty)) return true;
+  if (WEDDING_PAYEES.has(t.counterparty)) return true;
+  if (t.type === "UPI_DEBIT" && t.amount >= 50000) return true;
+  return false;
+}
+
 /* ---------- Detail panel ---------- */
 function DetailPanel({customerId, token, onUnauthorized}) {
   const [data, setData] = useState(null);
@@ -1268,6 +1285,26 @@ function DetailPanel({customerId, token, onUnauthorized}) {
       .then(d => { setData(d); setLoading(false); })
       .catch(e => { setErr(e.message); setLoading(false); });
   }, [customerId, token, onUnauthorized]);
+
+  const { dailyVolumes, triggerDays } = useMemo(() => {
+    if (!data || !data.transactions) return { dailyVolumes: [], triggerDays: new Set() };
+    const vols = Array.from({ length: 90 }, (_, i) => ({ day: i, amount: 0 }));
+    const tDays = new Set();
+    const today = new Date();
+    
+    data.transactions.forEach(t => {
+      const txDate = new Date(t.timestamp);
+      const diffDays = Math.floor((today.getTime() - txDate.getTime()) / 864e5);
+      if (diffDays >= 0 && diffDays < 90) {
+        const dayIdx = 89 - diffDays;
+        vols[dayIdx].amount += Math.abs(t.amount);
+        if (isTriggerTxn(t)) {
+          tDays.add(dayIdx);
+        }
+      }
+    });
+    return { dailyVolumes: vols, triggerDays: tDays };
+  }, [data]);
 
   if (!customerId) {
     return (
@@ -1293,43 +1330,6 @@ function DetailPanel({customerId, token, onUnauthorized}) {
   }
 
   const maxTriggerW = Math.max(...lead.triggers_fired.map(t => Math.abs(t.weight)), 1);
-
-  const REAL_ESTATE_PAYEES = useMemo(() => new Set(["Lodha Developers", "Godrej Properties", "DLF Homes", "Sub-Registrar Office", "HDFC Property Escrow", "Brigade Group"]), []);
-  const AUTO_PAYEES = useMemo(() => new Set(["Maruti Suzuki Arena", "Tata Motors Showroom", "Hyundai Dealership", "Mahindra Auto World", "TVS Motor Showroom"]), []);
-  const EDU_PAYEES = useMemo(() => new Set(["DPS School Fees", "VIT Vellore Fees", "Manipal University", "Byju's Tuition"]), []);
-  const MEDICAL_PAYEES = useMemo(() => new Set(["Apollo Hospitals", "Fortis Healthcare", "Manipal Hospital", "Star Health Insurance"]), []);
-  const WEDDING_PAYEES = useMemo(() => new Set(["Banquet Hall Booking", "Wedding Decor Co", "Jewellery Mart", "Catering Services"]), []);
-
-  const isTriggerTxn = useCallback((t) => {
-    if (t.type === "EMI_DEBIT") return true;
-    if (REAL_ESTATE_PAYEES.has(t.counterparty)) return true;
-    if (AUTO_PAYEES.has(t.counterparty)) return true;
-    if (EDU_PAYEES.has(t.counterparty)) return true;
-    if (MEDICAL_PAYEES.has(t.counterparty)) return true;
-    if (WEDDING_PAYEES.has(t.counterparty)) return true;
-    if (t.type === "UPI_DEBIT" && t.amount >= 50000) return true;
-    return false;
-  }, [REAL_ESTATE_PAYEES, AUTO_PAYEES, EDU_PAYEES, MEDICAL_PAYEES, WEDDING_PAYEES]);
-
-  const { dailyVolumes, triggerDays } = useMemo(() => {
-    if (!transactions) return { dailyVolumes: [], triggerDays: new Set() };
-    const vols = Array.from({ length: 90 }, (_, i) => ({ day: i, amount: 0 }));
-    const tDays = new Set();
-    const today = new Date();
-    
-    transactions.forEach(t => {
-      const txDate = new Date(t.timestamp);
-      const diffDays = Math.floor((today.getTime() - txDate.getTime()) / 864e5);
-      if (diffDays >= 0 && diffDays < 90) {
-        const dayIdx = 89 - diffDays;
-        vols[dayIdx].amount += Math.abs(t.amount);
-        if (isTriggerTxn(t)) {
-          tDays.add(dayIdx);
-        }
-      }
-    });
-    return { dailyVolumes: vols, triggerDays: tDays };
-  }, [transactions, isTriggerTxn]);
 
   return (
     <div>
