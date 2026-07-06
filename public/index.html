@@ -1059,48 +1059,43 @@ function CapacityWaterfall({ steps }) {
 
 function FoirBandChart({ bands, appliedFoir, loanType }) {
   if (!bands) return null;
-  const w = 500, h = 225, barH = 30, gap = 22, pad = 130;
-  const scale = (w - pad - 45) / 60; // 0-60% FOIR range with 45px right padding
-
   return (
     <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginBottom: 24, marginTop: 15 }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 12 }}>FOIR Underwriting Bands & Applied Interpolation</div>
-      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
-        {bands.map((b, i) => {
-          const y = i * (barH + gap) + 15;
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 18 }}>
+        FOIR Underwriting Bands & Applied Interpolation
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {bands.map((b) => {
           const isActive = b.loanType === loanType;
+          const leftPct = (b.min / 60) * 100;
+          const widthPct = ((b.max - b.min) / 60) * 100;
+          const appliedPct = (appliedFoir / 60) * 100;
           return (
-            <g key={b.loanType}>
-              <text x="0" y={y + barH / 2} dominantBaseline="central" fontSize="11" fontWeight={isActive ? "700" : "400"} fill="var(--text-hi)" fontFamily="var(--font-body)">
+            <div key={b.loanType} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 120, fontSize: 12.5, fontWeight: isActive ? '700' : '500', color: isActive ? 'var(--text-hi)' : 'var(--text-mid)', flexShrink: 0 }}>
                 {b.loanType}
-              </text>
-              <rect x={pad + b.min * scale} y={y} width={(b.max - b.min) * scale} height={barH}
-                    fill={isActive ? "var(--teal)" : "var(--border)"} opacity={isActive ? 0.9 : 0.4} rx="4" />
-              <text x={pad + b.min * scale - 4} y={y + barH / 2} dominantBaseline="central" fontSize="9" textAnchor="end" fill="var(--text-low)" fontFamily="var(--font-mono)">
-                {b.min}%
-              </text>
-              <text x={pad + b.max * scale + 4} y={y + barH / 2} dominantBaseline="central" fontSize="9" fill="var(--text-low)" fontFamily="var(--font-mono)">
-                {b.max}%
-              </text>
-              {isActive && (
-                <>
-                  <line x1={pad + appliedFoir * scale} y1={y - 6} x2={pad + appliedFoir * scale} y2={y + barH + 6}
-                        stroke="var(--red)" strokeWidth="2.5" />
-                  <text x={pad + appliedFoir * scale + (appliedFoir >= 56 ? -6 : appliedFoir <= 4 ? 6 : 0)} 
-                        y={y - 10} 
-                        fontSize="10" 
-                        fill="var(--red)" 
-                        textAnchor={appliedFoir >= 56 ? "end" : appliedFoir <= 4 ? "start" : "middle"} 
-                        fontWeight="700" 
-                        fontFamily="var(--font-display)">
-                    {appliedFoir}% applied
-                  </text>
-                </>
-              )}
-            </g>
+              </div>
+              <div style={{ flex: 1, height: 22, background: 'var(--surface-2)', border: '1px solid var(--border-soft)', borderRadius: 6, position: 'relative' }}>
+                <div style={{ position: 'absolute', right: `calc(100% - ${leftPct}% + 6px)`, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: 'var(--text-low)', fontFamily: 'var(--font-mono)' }}>
+                  {b.min}%
+                </div>
+                <div style={{ position: 'absolute', left: `${leftPct}%`, width: `${widthPct}%`, height: '100%', background: isActive ? 'var(--teal)' : 'var(--border)', opacity: isActive ? 0.95 : 0.25, borderRadius: 5 }}></div>
+                <div style={{ position: 'absolute', left: `calc(${leftPct + widthPct}% + 6px)`, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: 'var(--text-low)', fontFamily: 'var(--font-mono)' }}>
+                  {b.max}%
+                </div>
+                {isActive && (
+                  <>
+                    <div style={{ position: 'absolute', left: `${appliedPct}%`, top: -4, bottom: -4, width: 2, background: 'var(--red)', zIndex: 10 }}></div>
+                    <div style={{ position: 'absolute', left: `${appliedPct}%`, bottom: '100%', transform: 'translateX(-50%)', fontSize: 9.5, fontWeight: '700', color: 'var(--red)', whiteSpace: 'nowrap', marginBottom: 2, zIndex: 10 }}>
+                      {appliedFoir}% applied
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           );
         })}
-      </svg>
+      </div>
     </div>
   );
 }
