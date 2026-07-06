@@ -1,0 +1,140 @@
+/* Apple (Cupertino) Theme Overrides */
+:root {
+  /* Light palette */
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --surface-2: #f2f2f7;
+  --surface-3: #e5e5ea;
+  --border: #d1d1d6;
+  --border-soft: #c6c6c8;
+  --accent: #007aff; /* Apple blue */
+  --text-hi: #111111;
+  --text-mid: #555555;
+  --text-low: #777777;
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
+  --shadow-lg: 0 10px 20px rgba(0,0,0,0.15);
+  /* Legacy fallbacks */
+  --legacy-bg: var(--bg);
+  --legacy-surface: var(--surface);
+  --legacy-surface-2: var(--surface-2);
+  --legacy-surface-3: var(--surface-3);
+  --legacy-border: var(--border);
+  --legacy-border-soft: var(--border-soft);
+  --legacy-teal: var(--accent);
+  --legacy-amber: var(--accent);
+  --legacy-red: #ff3b30;
+}
+
+/* Global font */
+html, body {
+  font-family: -apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text-hi);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-soft);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Sidebar */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Auth Card */
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+}
+
+/* Buttons */
+.btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-hi);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+  transition: background .15s ease, border-color .15s ease;
+}
+.btn:hover {
+  background: var(--surface-3);
+  border-color: var(--accent);
+}
+.btn.primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+}
+.btn.primary:hover {
+  filter: brightness(1.05);
+}
+
+/* Inputs */
+.auth-input, .auth-select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-hi);
+  transition: border-color .15s ease;
+}
+.auth-input:focus, .auth-select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* Lead Card */
+.lead-card {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: transform .15s ease, border-color .15s ease;
+}
+.lead-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.lead-card.selected {
+  border-color: var(--accent);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-md);
+}
+
+/* Modal */
+.modal-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+}
+
+/* Optional dark mode – toggled via data-theme attribute */
+[data-theme="dark"] {
+  --bg: #1c1c1e;
+  --surface: #2c2c2e;
+  --surface-2: #3a3a3c;
+  --surface-3: #48484a;
+  --border: #5a5a5c;
+  --border-soft: #4a4a4c;
+  --text-hi: #f5f5f7;
+  --text-mid: #d1d1d6;
+  --text-low: #a1a1a3;
+}
