@@ -332,6 +332,43 @@ body{
   to { opacity: 1; }
 }
 
+/* ---------- Printing & Compare Styles ---------- */
+.lead-tree {
+  font-family: var(--font-body);
+}
+#lens-printable-report {
+  display: none;
+}
+.dashboard-bg {
+  background: linear-gradient(120deg, var(--surface) 0%, var(--surface-2) 100%) !important;
+  background-size: 200% 200%;
+  animation: subtleShift 18s ease infinite;
+}
+@keyframes subtleShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #lens-printable-report, #lens-printable-report * {
+    visibility: visible;
+  }
+  #lens-printable-report {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: #ffffff !important;
+    color: #111827 !important;
+    padding: 20px;
+    font-family: var(--font-body);
+  }
+}
+
 /* ---------- Auth UI ---------- */
 .auth-container {
   display: flex;
@@ -739,6 +776,372 @@ function RoiDonut({ assessmentCost, outreachCost, netProfit }) {
   );
 }
 
+}
+
+function TransactionSpikeChart({ dailyVolumes, triggerDays }) {
+  if (!dailyVolumes || dailyVolumes.length === 0) return null;
+  const w = 600, h = 140, pad = 20;
+  const max = Math.max(...dailyVolumes.map(d => d.amount), 1);
+  const x = (day) => pad + (day / 89) * (w - pad * 2);
+  const y = (amt) => h - pad - (amt / max) * (h - pad * 2);
+  
+  const path = dailyVolumes
+    .map((d, i) => `${i === 0 ? "M" : "L"}${x(d.day)},${y(d.amount)}`)
+    .join(" ");
+
+  return (
+    <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginBottom: 24 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 12 }}>90-Day Transaction Volume & Fired Triggers</div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
+        <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="var(--border-soft)" strokeWidth="1.5" />
+        <path d={path} fill="none" stroke="var(--teal)" strokeWidth="2.5" strokeLinejoin="round" />
+        {dailyVolumes.filter(d => triggerDays.has(d.day)).map(d => (
+          <g key={d.day}>
+            <circle cx={x(d.day)} cy={y(d.amount)} r="5.5" fill="var(--red)" />
+            <line x1={x(d.day)} y1={y(d.amount)} x2={x(d.day)} y2={h - pad} stroke="var(--red)" strokeWidth="1.5" strokeDasharray="3,3" />
+          </g>
+        ))}
+        <text x={pad} y="14" fontSize="10" fill="var(--text-low)" fontFamily="var(--font-body)">₹ daily volume</text>
+        <text x={w - pad} y="14" fontSize="10" fill="var(--red)" fontWeight="600" textAnchor="end" fontFamily="var(--font-body)">● behavioral trigger fired</text>
+      </svg>
+    </div>
+  );
+}
+
+function LeadFileTree({ customer, lead, income_breakdown, capacity, transactions }) {
+  const [open, setOpen] = useState({ triggers: true, income: true });
+  const toggle = (k) => setOpen(o => ({ ...o, [k]: !o[k] }));
+
+  const nodes = [
+    { key: "triggers", label: `Triggers Fired (${lead.triggers_fired.length})`,
+      content: lead.triggers_fired.map(t => `${t.label} (weight: ${t.weight})`) },
+    { key: "income", label: "Income Reconstruction (CLARITY)",
+      content: [`Synthetic: ${fmtINR(income_breakdown?.synthetic_monthly_income)}/mo`,
+                 `Confidence: ${100 - (lead.income_accuracy_pct || 0)}%`,
+                 `Methodology: ${income_breakdown?.method}`] },
+    { key: "capacity", label: "Underwriting & Capacity (CAPACITY)",
+      content: capacity 
+        ? [`Eligible Principal: ${fmtINR(capacity.recommended_eligible_amount)}`,
+           `Recommended Tenure: ${capacity.recommended_tenure_months} months`,
+           `Debt-to-Income (DTI): ${(capacity.dti_ratio * 100).toFixed(1)}%`,
+           `Disposable Income: ${fmtINR(capacity.disposable_income)}/mo`,
+           `Safe EMI Ceiling: ${fmtINR(capacity.safe_emi_ceiling)}/mo`,
+           `Existing EMI detected: ${fmtINR(capacity.existing_emi_monthly)}/mo`]
+        : ["Underwriting details loading..."]
+    },
+    { key: "loan", label: "Matched Product (MATCH)", content: [`Propensity: ${lead.predicted_loan_type}`] },
+    { key: "outreach", label: "Outreach Plan (MOMENT)",
+      content: [`Channel: ${lead.outreach_channel}`,
+                `Window ends: ${fmtWindowEnd(lead.outreach_window_end)}`] },
+    { key: "transactions", label: `Recent Transactions (${transactions.length})`,
+      content: transactions.slice(0, 10).map(t => `${new Date(t.timestamp).toLocaleDateString('en-IN', {day:'2-digit', month:'short'})} · ${fmtINR(t.amount)} · ${t.counterparty}`) },
+  ];
+
+  return (
+    <div className="lead-tree" style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginBottom: 24 }}>
+      <div className="tree-root" style={{ fontFamily: 'var(--font-display)', color: 'var(--text-hi)', fontSize: 14, marginBottom: 12 }}>📁 Underwriting Evidence File: {lead.customer_id}</div>
+      {nodes.map(n => (
+        <div key={n.key} className="tree-node" style={{ marginLeft: 12, marginBottom: 8 }}>
+          <div className="tree-label" onClick={() => toggle(n.key)} style={{ cursor: 'pointer', padding: '4px 0', userSelect: 'none', fontWeight: 600, color: 'var(--text-hi)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: 'var(--teal)', fontSize: 10 }}>{open[n.key] ? "▼" : "▶"}</span> {n.label}
+          </div>
+          {open[n.key] && (
+            <div className="tree-content" style={{ marginLeft: 18, borderLeft: '1px dashed var(--border-soft)', paddingLeft: 12, color: 'var(--text-mid)', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+              {n.content.map((c, i) => <div key={i} className="tree-leaf" style={{ padding: '2px 0' }}>— {c}</div>)}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PrintableReport({ customer, lead, income_breakdown, capacity, transactions }) {
+  if (!customer || !lead) return null;
+  return (
+    <div id="lens-printable-report">
+      <div style={{ borderBottom: '2px solid #111827', paddingBottom: 15, marginBottom: 25, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1 style={{ fontSize: 24, margin: 0, fontWeight: 'bold', color: '#111827', fontFamily: 'Space Grotesk' }}>LENS — Prospect Intelligence Report</h1>
+          <div style={{ fontSize: 12, color: '#4b5563', marginTop: 4 }}>Ranked, Explainable Retail Lending Underwriting Artifact</div>
+        </div>
+        <div style={{ textAlign: 'right', fontSize: 12, color: '#4b5563' }}>
+          <div>Generated: {new Date().toLocaleString('en-IN')}</div>
+          <div>Confidential · IDBI Innovate 2026</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 30, marginBottom: 25 }}>
+        <div>
+          <h3 style={{ borderBottom: '1px solid #d1d5db', paddingBottom: 6, margin: '0 0 10px', fontSize: 16 }}>Borrower Profile</h3>
+          <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+            <tbody>
+              <tr><td style={{ padding: '6px 0', fontWeight: 'bold', width: 140 }}>Customer Name:</td><td>{customer.name}</td></tr>
+              <tr><td style={{ padding: '6px 0', fontWeight: 'bold' }}>Customer ID:</td><td>{customer.customer_id}</td></tr>
+              <tr><td style={{ padding: '6px 0', fontWeight: 'bold' }}>Demographics:</td><td>{customer.age} years old · {customer.city}, {customer.state}</td></tr>
+              <tr><td style={{ padding: '6px 0', fontWeight: 'bold' }}>Employment Segment:</td><td>{customer.employment_type}</td></tr>
+              <tr><td style={{ padding: '6px 0', fontWeight: 'bold' }}>Matched Product:</td><td>{lead.predicted_loan_type}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f3f4f6', borderRadius: 12, padding: 15 }}>
+          <div style={{ fontSize: 11, textTransform: 'uppercase', color: '#4B5563', fontWeight: 'bold', marginBottom: 5 }}>Risk & Repayment Quality</div>
+          <TrustGauge score={lead.trust_score} tier={lead.tier} size={110} />
+          <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, fontWeight: '600' }}>{lead.tier_action_label}</div>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 25 }}>
+        <h3 style={{ borderBottom: '1px solid #d1d5db', paddingBottom: 6, margin: '0 0 10px', fontSize: 16 }}>1. PULSE — Behavioral Intent & Trigger Analysis</h3>
+        <p style={{ fontSize: 12.5, color: '#4b5563', margin: '0 0 10px' }}>
+          Behavior-derived intent score: <b>{lead.intent_score} / 100</b>. The following high-fidelity indicators were detected in the transactional records:
+        </p>
+        <table style={{ width: '100%', fontSize: 12.5, borderCollapse: 'collapse', textAlign: 'left' }}>
+          <thead>
+            <tr style={{ background: '#f3f4f6' }}>
+              <th style={{ padding: '8px 10px', borderBottom: '1.5px solid #d1d5db' }}>Fired Trigger</th>
+              <th style={{ padding: '8px 10px', borderBottom: '1.5px solid #d1d5db', textAlign: 'center' }}>Score Weight</th>
+              <th style={{ padding: '8px 10px', borderBottom: '1.5px solid #d1d5db', textAlign: 'right' }}>Intensity Contribution</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lead.triggers_fired.map(t => (
+              <tr key={t.code}>
+                <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb' }}>{t.label}</td>
+                <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb', textAlign: 'center', fontFamily: 'monospace' }}>{t.weight > 0 ? '+' : ''}{t.weight}</td>
+                <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', fontFamily: 'monospace' }}>{t.contribution}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ marginBottom: 25, pageBreakInside: 'avoid' }}>
+        <h3 style={{ borderBottom: '1px solid #d1d5db', paddingBottom: 6, margin: '0 0 10px', fontSize: 16 }}>2. CLARITY & CAPACITY — Alternative Income & Underwriting Limits</h3>
+        <p style={{ fontSize: 12.5, color: '#4b5563', margin: '0 0 10px' }}>
+          Net monthly income reconstructed from UPI transaction streams. Debt-to-Income (DTI) and loan ceilings calibrated against risk tier:
+        </p>
+        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', marginBottom: 15 }}>
+          <tbody>
+            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+              <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Reconstructed Monthly Income:</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{fmtINR(income_breakdown?.synthetic_monthly_income)}/mo</td>
+              <td style={{ padding: '8px 0', fontWeight: 'bold', paddingLeft: 30 }}>Declared Monthly Income:</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{customer.declared_income ? fmtINR(customer.declared_income) : 'None filed'}</td>
+            </tr>
+            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+              <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Existing Monthly EMI Obligations:</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace', color: capacity?.existing_emi_monthly > 0 ? '#dc2626' : undefined }}>{fmtINR(capacity?.existing_emi_monthly || 0)}</td>
+              <td style={{ padding: '8px 0', fontWeight: 'bold', paddingLeft: 30 }}>Safe Monthly EMI Ceiling:</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace', color: '#16a34a', fontWeight: 'bold' }}>{fmtINR(capacity?.safe_emi_ceiling || 0)}</td>
+            </tr>
+            <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+              <td style={{ padding: '8px 0', fontWeight: 'bold' }}>Applied FOIR Limit:</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{((capacity?.foir_ratio_applied || 0) * 100).toFixed(1)}%</td>
+              <td style={{ padding: '8px 0', fontWeight: 'bold', paddingLeft: 30 }}>Debt-to-Income (DTI) Ratio:</td>
+              <td style={{ textAlign: 'right', fontFamily: 'monospace' }}>{((capacity?.dti_ratio || 0) * 100).toFixed(1)}%</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {capacity && (
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 'bold', marginBottom: 6, color: '#374151' }}>Eligible Loan Capacity Sheet:</div>
+            <table style={{ width: '100%', fontSize: 12.5, borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ background: '#f3f4f6' }}>
+                  <th style={{ padding: '6px 10px', borderBottom: '1.5px solid #d1d5db' }}>Loan Product Option</th>
+                  <th style={{ padding: '6px 10px', borderBottom: '1.5px solid #d1d5db', textAlign: 'right' }}>Max Eligible Amount</th>
+                  <th style={{ padding: '6px 10px', borderBottom: '1.5px solid #d1d5db', textAlign: 'right' }}>Assumed APR</th>
+                  <th style={{ padding: '6px 10px', borderBottom: '1.5px solid #d1d5db', textAlign: 'right' }}>Standard Tenure</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(capacity.eligible_amount_by_type).map(([ltype, amt]) => {
+                  const isRecommended = ltype === normalize_loan_type(capacity.recommended_loan_type);
+                  const rate = capacity.assumptions.assumed_annual_rates[ltype] || 0;
+                  const tenure = capacity.assumptions.assumed_tenure_months[ltype] || 0;
+                  return (
+                    <tr key={ltype} style={isRecommended ? { background: '#f0fdf4', fontWeight: 'bold' } : undefined}>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb' }}>{ltype} {isRecommended && "(Recommended)"}</td>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', fontFamily: 'monospace' }}>{fmtINR(amt)}</td>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', fontFamily: 'monospace' }}>{(rate * 100).toFixed(1)}%</td>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', fontFamily: 'monospace' }}>{tenure} months</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div style={{ borderTop: '1px solid #d1d5db', paddingTop: 15, textAlign: 'center', fontSize: 10, color: '#9ca3af', marginTop: 40, pageBreakInside: 'avoid' }}>
+        This document represents an algorithmic retail lead pre-qualification report compiled by the LENS Behavioural Lending Intelligence Platform. All metrics are computed dynamically from actual digital transaction signatures. Review manually before credit disbursal.
+      </div>
+    </div>
+  );
+}
+
+function CompareLeadsWorkspace({ leads, token, onUnauthorized }) {
+  const [leadAId, setLeadAId] = useState('');
+  const [leadBId, setLeadBId] = useState('');
+  const [leadA, setLeadA] = useState(null);
+  const [leadB, setLeadB] = useState(null);
+  const [loadingA, setLoadingA] = useState(false);
+  const [loadingB, setLoadingB] = useState(false);
+
+  useEffect(() => {
+    if (leads && leads.length >= 2) {
+      setLeadAId(leads[0].customer_id);
+      setLeadBId(leads[1].customer_id);
+    }
+  }, [leads]);
+
+  useEffect(() => {
+    if (!leadAId || !token) return;
+    setLoadingA(true);
+    fetch(`${API_BASE}/api/leads/${leadAId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(d => { setLeadA(d); setLoadingA(false); })
+      .catch(() => setLoadingA(false));
+  }, [leadAId, token]);
+
+  useEffect(() => {
+    if (!leadBId || !token) return;
+    setLoadingB(true);
+    fetch(`${API_BASE}/api/leads/${leadBId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(d => { setLeadB(d); setLoadingB(false); })
+      .catch(() => setLoadingB(false));
+  }, [leadBId, token]);
+
+  const winner = (a, b) => {
+    const numA = parseFloat(a);
+    const numB = parseFloat(b);
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return numA > numB ? "A" : numB > numA ? "B" : null;
+    }
+    return null;
+  };
+
+  const getCompareRows = () => {
+    if (!leadA || !leadB) return [];
+    return [
+      ["Trust Score", leadA.lead.trust_score, leadB.lead.trust_score],
+      ["Tier", leadA.lead.tier, leadB.lead.tier],
+      ["Predicted Loan", leadA.lead.predicted_loan_type, leadB.lead.predicted_loan_type],
+      ["Reconstructed Income", leadA.income_breakdown?.synthetic_monthly_income, leadB.income_breakdown?.synthetic_monthly_income, true],
+      ["Income Confidence", 100 - (leadA.lead.income_accuracy_pct || 0), 100 - (leadB.lead.income_accuracy_pct || 0), false, "%"],
+      ["Trigger Count", leadA.lead.triggers_fired.length, leadB.lead.triggers_fired.length],
+      ["Outreach Channel", leadA.lead.outreach_channel, leadB.lead.outreach_channel],
+      ["Eligible Loan Capacity", leadA.capacity?.recommended_eligible_amount, leadB.capacity?.recommended_eligible_amount, true],
+      ["DTI Ratio", (leadA.capacity?.dti_ratio * 100) || 0, (leadB.capacity?.dti_ratio * 100) || 0, false, "%"],
+    ];
+  };
+
+  const rows = getCompareRows();
+
+  return (
+    <div style={{ padding: '0 32px 32px' }}>
+      <h3 style={{ fontFamily: 'var(--font-display)', marginBottom: 20 }}>Side-by-Side Lead Comparison</h3>
+      <p style={{ fontSize: 13, color: 'var(--text-mid)', marginBottom: 24 }}>
+        Select two prospective leads to compare their trust score, income confidence, trigger density, and underwriting capacities side-by-side.
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 1fr', gap: 20, marginBottom: 24 }}>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Lead A</label>
+          <select 
+            value={leadAId} 
+            onChange={e => setLeadAId(e.target.value)}
+            style={{ width: '100%', background: 'var(--surface-2)', color: 'var(--text-hi)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', fontSize: 13 }}
+          >
+            {leads.map(l => (
+              <option key={l.customer_id} value={l.customer_id}>{l.name} ({l.customer_id})</option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'var(--text-low)', fontSize: 14, paddingTop: 18 }}>
+          VS
+        </div>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Lead B</label>
+          <select 
+            value={leadBId} 
+            onChange={e => setLeadBId(e.target.value)}
+            style={{ width: '100%', background: 'var(--surface-2)', color: 'var(--text-hi)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', fontSize: 13 }}
+          >
+            {leads.map(l => (
+              <option key={l.customer_id} value={l.customer_id}>{l.name} ({l.customer_id})</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {loadingA || loadingB ? (
+        <div style={{ padding: 60, textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }}></div></div>
+      ) : leadA && leadB ? (
+        <div className="compare-grid" style={{ background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 16, padding: '24px 30px' }}>
+          <div className="compare-head" style={{ borderBottom: '2px solid var(--border)', paddingBottom: 10, fontWeight: 'bold', color: 'var(--text-hi)' }}>{leadA.customer.name}</div>
+          <div className="compare-head center" style={{ borderBottom: '2px solid var(--border)', paddingBottom: 10, color: 'var(--text-low)' }}>Category</div>
+          <div className="compare-head" style={{ borderBottom: '2px solid var(--border)', paddingBottom: 10, fontWeight: 'bold', color: 'var(--text-hi)' }}>{leadB.customer.name}</div>
+          
+          {rows.map(([label, valA, valB, isCurrency, suffix = ""], i) => {
+            const w = winner(valA, valB);
+            
+            const formatVal = (v) => {
+              if (v === null || v === undefined) return '—';
+              if (isCurrency) return fmtINR(v);
+              return typeof v === 'number' ? v.toLocaleString('en-IN') + suffix : v + suffix;
+            };
+
+            return (
+              <React.Fragment key={i}>
+                <div 
+                  className={`compare-cell ${w === "A" ? "win" : ""}`} 
+                  style={{ 
+                    padding: '12px 16px', 
+                    borderRadius: 8, 
+                    textAlign: 'center', 
+                    fontSize: 13,
+                    background: w === "A" ? 'rgba(22, 194, 174, 0.08)' : 'transparent',
+                    color: w === "A" ? 'var(--teal)' : 'var(--text-hi)',
+                    fontWeight: w === "A" ? 'bold' : 'normal'
+                  }}
+                >
+                  {formatVal(valA)}
+                </div>
+                <div className="compare-label" style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px' }}>{label}</div>
+                <div 
+                  className={`compare-cell ${w === "B" ? "win" : ""}`} 
+                  style={{ 
+                    padding: '12px 16px', 
+                    borderRadius: 8, 
+                    textAlign: 'center', 
+                    fontSize: 13,
+                    background: w === "B" ? 'rgba(22, 194, 174, 0.08)' : 'transparent',
+                    color: w === "B" ? 'var(--teal)' : 'var(--text-hi)',
+                    fontWeight: w === "B" ? 'bold' : 'normal'
+                  }}
+                >
+                  {formatVal(valB)}
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{ color: 'var(--text-low)', fontStyle: 'italic', textAlign: 'center', padding: 40 }}>Please select two valid leads to begin.</div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- Pulse waveform SVG (the signature element) ---------- */
 function PulseLine({intensity = 50, color = 'var(--teal)', width = 200, height = 26, animate = true, id}) {
   // Generates an ECG-style waveform whose spike height scales with `intensity`
@@ -893,13 +1296,54 @@ function DetailPanel({customerId, token, onUnauthorized}) {
 
   const maxTriggerW = Math.max(...lead.triggers_fired.map(t => Math.abs(t.weight)), 1);
 
+  const REAL_ESTATE_PAYEES = useMemo(() => new Set(["Lodha Developers", "Godrej Properties", "DLF Homes", "Sub-Registrar Office", "HDFC Property Escrow", "Brigade Group"]), []);
+  const AUTO_PAYEES = useMemo(() => new Set(["Maruti Suzuki Arena", "Tata Motors Showroom", "Hyundai Dealership", "Mahindra Auto World", "TVS Motor Showroom"]), []);
+  const EDU_PAYEES = useMemo(() => new Set(["DPS School Fees", "VIT Vellore Fees", "Manipal University", "Byju's Tuition"]), []);
+  const MEDICAL_PAYEES = useMemo(() => new Set(["Apollo Hospitals", "Fortis Healthcare", "Manipal Hospital", "Star Health Insurance"]), []);
+  const WEDDING_PAYEES = useMemo(() => new Set(["Banquet Hall Booking", "Wedding Decor Co", "Jewellery Mart", "Catering Services"]), []);
+
+  const isTriggerTxn = useCallback((t) => {
+    if (t.type === "EMI_DEBIT") return true;
+    if (REAL_ESTATE_PAYEES.has(t.counterparty)) return true;
+    if (AUTO_PAYEES.has(t.counterparty)) return true;
+    if (EDU_PAYEES.has(t.counterparty)) return true;
+    if (MEDICAL_PAYEES.has(t.counterparty)) return true;
+    if (WEDDING_PAYEES.has(t.counterparty)) return true;
+    if (t.type === "UPI_DEBIT" && t.amount >= 50000) return true;
+    return false;
+  }, [REAL_ESTATE_PAYEES, AUTO_PAYEES, EDU_PAYEES, MEDICAL_PAYEES, WEDDING_PAYEES]);
+
+  const { dailyVolumes, triggerDays } = useMemo(() => {
+    if (!transactions) return { dailyVolumes: [], triggerDays: new Set() };
+    const vols = Array.from({ length: 90 }, (_, i) => ({ day: i, amount: 0 }));
+    const tDays = new Set();
+    const today = new Date();
+    
+    transactions.forEach(t => {
+      const txDate = new Date(t.timestamp);
+      const diffDays = Math.floor((today.getTime() - txDate.getTime()) / 864e5);
+      if (diffDays >= 0 && diffDays < 90) {
+        const dayIdx = 89 - diffDays;
+        vols[dayIdx].amount += Math.abs(t.amount);
+        if (isTriggerTxn(t)) {
+          tDays.add(dayIdx);
+        }
+      }
+    });
+    return { dailyVolumes: vols, triggerDays: tDays };
+  }, [transactions, isTriggerTxn]);
+
   return (
     <div>
+      <PrintableReport customer={customer} lead={lead} income_breakdown={income_breakdown} capacity={lead.capacity} transactions={transactions} />
       <div className="detail-head">
         <div>
           <h2>{customer.name}</h2>
           <div className="detail-sub">{customer.customer_id} · {customer.age} yrs · {customer.employment_type} · {customer.city}, {customer.state}</div>
           <div style={{fontSize: 12.5, color: 'var(--teal)', marginTop: 5, fontWeight: 600}}>⚡ Underwriter Action: {lead.tier_action_label || 'Refer to RM for manual review'}</div>
+          <button className="btn" onClick={() => window.print()} style={{ marginTop: 10, fontSize: 11.5, padding: '6px 12px', height: 'auto', borderColor: 'var(--teal-dim)', color: 'var(--teal)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            🖨️ Print Intelligence Report
+          </button>
         </div>
         <div className="score-ring-wrap">
           <ScoreRing value={lead.intent_score} label="Intent" color="var(--amber)" />
@@ -929,6 +1373,9 @@ function DetailPanel({customerId, token, onUnauthorized}) {
       <div style={{background: 'var(--surface-2)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginBottom: 24}}>
         <ReasoningFlow customer={customer} lead={lead} income_breakdown={income_breakdown} capacity={lead.capacity} />
       </div>
+
+      <div className="section-title"><span className="dot"></span>Underwriter Evidence Explorer (Case File)</div>
+      <LeadFileTree customer={customer} lead={lead} income_breakdown={income_breakdown} capacity={lead.capacity} transactions={transactions} />
 
       <div className="section-title"><span className="dot"></span>PULSE — Behavioural Triggers Fired</div>
       <div className="trigger-list">
@@ -1064,6 +1511,8 @@ function DetailPanel({customerId, token, onUnauthorized}) {
         </div>
         <div className="loan-chip" style={{fontSize:12, padding:'7px 14px'}}>MATCH confidence: behaviour-derived</div>
       </div>
+
+      <TransactionSpikeChart dailyVolumes={dailyVolumes} triggerDays={triggerDays} />
 
       <div className="section-title"><span className="dot"></span>Recent Transaction Stream ({transactions.length} total)</div>
       <table className="txn-table">
@@ -1898,10 +2347,17 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className="app dashboard-bg">
       <div className="sidebar">
         <div className="brand-mark"><IconPulse style={{color:'var(--teal)'}} /></div>
         <div className={`nav-icon ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')} title="Leads Console"><IconList/></div>
+        <div className={`nav-icon ${activeTab === 'compare' ? 'active' : ''}`} onClick={() => setActiveTab('compare')} title="Compare Leads">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+            <line x1="12" y1="3" x2="12" y2="17" />
+            <line x1="12" y1="21" x2="12" y2="21" />
+          </svg>
+        </div>
         <div className={`nav-icon ${activeTab === 'governance' ? 'active' : ''}`} onClick={() => setActiveTab('governance')} title="Governance & Audit"><IconShield/></div>
         <div className="sidebar-spacer"></div>
         {auth && (
@@ -2001,6 +2457,8 @@ function App() {
               )}
             </div>
           </div>
+        ) : activeTab === 'compare' ? (
+          <CompareLeadsWorkspace leads={leads} token={auth?.token} onUnauthorized={handleUnauthorized} />
         ) : (
           <GovernanceDashboard token={auth?.token} onUnauthorized={handleUnauthorized} />
         )}
