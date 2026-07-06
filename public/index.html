@@ -1415,39 +1415,6 @@ function TrustScoreWaterfall({ lead }) {
   );
 }
 
-function TrustGauge({ score, size = 160 }) {
-  if (score == null) return null;
-  const clamped = Math.max(0, Math.min(100, score));
-  const angle = -90 + (clamped / 100) * 180;
-  const color = clamped >= 70 ? "var(--tier1, #2dd4bf)"
-              : clamped >= 45 ? "var(--tier2, #f59e0b)"
-              : "var(--tier3, #ef4444)";
-  const r = size / 2 - 10;
-  const cx = size / 2, cy = size / 2;
-  const toXY = (deg) => {
-    const rad = (deg * Math.PI) / 180;
-    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
-  };
-  const start = toXY(-180), end = toXY(0);
-  const needleEnd = toXY(angle);
-
-  return (
-    <svg viewBox={`0 0 ${size} ${size / 2 + 20}`} width={size} height={size / 2 + 20}>
-      <path d={`M ${start.x} ${start.y} A ${r} ${r} 0 0 1 ${end.x} ${end.y}`}
-            fill="none" stroke="var(--border)" strokeWidth="14" strokeLinecap="round" />
-      <path d={`M ${start.x} ${start.y} A ${r} ${r} 0 0 1 ${needleEnd.x} ${needleEnd.y}`}
-            fill="none" stroke={color} strokeWidth="14" strokeLinecap="round" />
-      <circle cx={cx} cy={cy} r="5" fill="var(--text-high, #e5e5e5)" />
-      <line x1={cx} y1={cy} x2={needleEnd.x} y2={needleEnd.y} stroke="var(--text-high, #e5e5e5)" strokeWidth="2" />
-      <text x={cx} y={cy - 20} textAnchor="middle" fontSize="22" fontWeight="800" fill={color}>
-        {Math.round(clamped)}
-      </text>
-      <text x={cx} y={cy - 2} textAnchor="middle" fontSize="10" fill="var(--text-low)">
-        Financial Health
-      </text>
-    </svg>
-  );
-}
 
 function LeadFileTree({ customer, lead, income_breakdown, capacity, transactions }) {
   const [open, setOpen] = useState({ triggers: true, income: true });
