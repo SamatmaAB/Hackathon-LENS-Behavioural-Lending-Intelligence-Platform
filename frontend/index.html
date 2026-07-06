@@ -1071,15 +1071,15 @@ function FoirBandChart({ bands, appliedFoir, loanType }) {
           const isActive = b.loanType === loanType;
           return (
             <g key={b.loanType}>
-              <text x="0" y={y + barH / 2 + 4} fontSize="11" fontWeight={isActive ? "700" : "400"} fill="var(--text-hi)" fontFamily="var(--font-body)">
+              <text x="0" y={y + barH / 2} dominantBaseline="central" fontSize="11" fontWeight={isActive ? "700" : "400"} fill="var(--text-hi)" fontFamily="var(--font-body)">
                 {b.loanType}
               </text>
               <rect x={pad + b.min * scale} y={y} width={(b.max - b.min) * scale} height={barH}
                     fill={isActive ? "var(--teal)" : "var(--border)"} opacity={isActive ? 0.9 : 0.4} rx="4" />
-              <text x={pad + b.min * scale - 4} y={y + barH / 2 + 4} fontSize="9" textAnchor="end" fill="var(--text-low)" fontFamily="var(--font-mono)">
+              <text x={pad + b.min * scale - 4} y={y + barH / 2} dominantBaseline="central" fontSize="9" textAnchor="end" fill="var(--text-low)" fontFamily="var(--font-mono)">
                 {b.min}%
               </text>
-              <text x={pad + b.max * scale + 4} y={y + barH / 2 + 4} fontSize="9" fill="var(--text-low)" fontFamily="var(--font-mono)">
+              <text x={pad + b.max * scale + 4} y={y + barH / 2} dominantBaseline="central" fontSize="9" fill="var(--text-low)" fontFamily="var(--font-mono)">
                 {b.max}%
               </text>
               {isActive && (
