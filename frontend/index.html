@@ -1625,6 +1625,79 @@ function isTriggerTxn(t) {
   return false;
 }
 
+/* ---------- AI Narrative Card (Feature 1) ---------- */
+function AINarrativeCard({customerId, token}) {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const generate = () => {
+    if (loading) return;
+    setLoading(true); setErr(null);
+    fetch(`${API_BASE}/api/leads/${customerId}/narrative`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => { if (!r.ok) return r.json().then(e => { throw new Error(e.detail || 'Failed'); }); return r.json(); })
+      .then(d => { setData(d); setLoading(false); setOpen(true); })
+      .catch(e => { setErr(e.message); setLoading(false); });
+  };
+
+  return (
+    <div style={{marginTop:24, background:'linear-gradient(135deg, rgba(22,194,174,0.07), rgba(99,102,241,0.05))', border:'1px solid rgba(22,194,174,0.2)', borderRadius:14, padding:'16px 20px'}}>
+      <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+        <div style={{display:'flex', alignItems:'center', gap:8}}>
+          <span style={{fontSize:18}}>✦</span>
+          <div>
+            <div style={{fontWeight:700, fontSize:13.5, color:'var(--text)'}}>LENS AI Briefing</div>
+            <div style={{fontSize:11.5, color:'var(--text-low)'}}>Claude-powered narrative, outreach draft &amp; objection playbook</div>
+          </div>
+        </div>
+        <div style={{display:'flex', gap:8, alignItems:'center'}}>
+          {data && <span style={{fontSize:11, color:'var(--text-low)'}}>{data.cached ? '⚡ cached' : '✓ fresh'}</span>}
+          <button
+            id={`ai-briefing-btn-${customerId}`}
+            onClick={data ? () => setOpen(!open) : generate}
+            disabled={loading}
+            style={{background:'var(--teal)', border:'none', borderRadius:8, color:'#fff', padding:'8px 16px', fontSize:12.5, fontWeight:600, cursor:'pointer', opacity: loading ? 0.6 : 1}}
+          >
+            {loading ? 'Generating…' : data ? (open ? 'Collapse' : 'Show Briefing') : 'Generate AI Briefing'}
+          </button>
+        </div>
+      </div>
+
+      {err && <div style={{color:'#ef4444', fontSize:12.5, marginTop:10}}>⚠ {err}</div>}
+
+      {open && data && (
+        <div style={{marginTop:16, display:'flex', flexDirection:'column', gap:14}}>
+          <div style={{background:'var(--surface)', borderRadius:10, padding:'14px 16px'}}>
+            <div style={{fontSize:11, fontWeight:700, color:'var(--teal)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6}}>Narrative</div>
+            <div style={{fontSize:13.5, lineHeight:1.7, color:'var(--text)'}}>{data.narrative}</div>
+          </div>
+          <div style={{background:'var(--surface)', borderRadius:10, padding:'14px 16px'}}>
+            <div style={{fontSize:11, fontWeight:700, color:'var(--teal)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6}}>Draft Outreach Message</div>
+            <div style={{fontSize:13, lineHeight:1.7, color:'var(--text)', whiteSpace:'pre-wrap', fontFamily:'var(--font-mono)'}}>{data.outreach_draft}</div>
+          </div>
+          {data.objections && data.objections.length > 0 && (
+            <div style={{background:'var(--surface)', borderRadius:10, padding:'14px 16px'}}>
+              <div style={{fontSize:11, fontWeight:700, color:'var(--teal)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:10}}>Likely Objections &amp; Responses</div>
+              <div style={{display:'flex', flexDirection:'column', gap:10}}>
+                {data.objections.map((obj, i) => (
+                  <div key={i} style={{borderLeft:'2px solid var(--border)', paddingLeft:12}}>
+                    <div style={{fontSize:12.5, fontWeight:600, color:'var(--text)', marginBottom:4}}>Q: {obj.question}</div>
+                    <div style={{fontSize:12.5, color:'var(--text-mid)', lineHeight:1.6}}>A: {obj.response}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- Detail panel ---------- */
 function DetailPanel({customerId, token, onUnauthorized}) {
   const [data, setData] = useState(null);
@@ -1916,19 +1989,25 @@ function DetailPanel({customerId, token, onUnauthorized}) {
           ))}
         </tbody>
       </table>
+
+      <AINarrativeCard customerId={customerId} token={token} />
     </div>
   );
 }
 
 
 /* ---------- Governance Dashboard Component ---------- */
-function GovernanceDashboard({leads, stats, token, onUnauthorized}) {
-  const [subTab, setSubTab] = useState('evaluation'); // 'evaluation', 'fairness', 'compliance', 'sandbox', 'roi'
+function GovernanceDashboard({leads, stats, token, user, onUnauthorized}) {
+  const [subTab, setSubTab] = useState('evaluation'); // 'evaluation', 'fairness', 'compliance', 'sandbox', 'roi', 'sentry'
   const [evalData, setEvalData] = useState(null);
   const [fairnessData, setFairnessData] = useState(null);
   const [complianceData, setComplianceData] = useState(null);
   const [sandboxData, setSandboxData] = useState(null);
   const [roiData, setRoiData] = useState(null);
+  const [sentryData, setSentryData] = useState(null);
+  const [askQuestion, setAskQuestion] = useState('');
+  const [askAnswer, setAskAnswer] = useState(null);
+  const [askLoading, setAskLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -1985,6 +2064,7 @@ function GovernanceDashboard({leads, stats, token, onUnauthorized}) {
     else if (tab === 'compliance') endpoint = '/api/governance/compliance';
     else if (tab === 'sandbox') endpoint = '/api/governance/sandbox-mapping';
     else if (tab === 'roi') endpoint = '/api/governance/roi';
+    else if (tab === 'sentry') endpoint = '/api/governance/anomalies';
 
     fetch(`${API_BASE}${endpoint}`, {
       headers: { 'Authorization': `Bearer ${token}` }
@@ -2000,6 +2080,7 @@ function GovernanceDashboard({leads, stats, token, onUnauthorized}) {
         else if (tab === 'compliance') setComplianceData(data);
         else if (tab === 'sandbox') setSandboxData(data);
         else if (tab === 'roi') setRoiData(data);
+        else if (tab === 'sentry') setSentryData(data);
         setLoading(false);
       })
       .catch(e => {
@@ -2007,6 +2088,19 @@ function GovernanceDashboard({leads, stats, token, onUnauthorized}) {
         setLoading(false);
       });
   }, [token, onUnauthorized]);
+
+  const submitAsk = () => {
+    if (!askQuestion.trim() || askLoading) return;
+    setAskLoading(true); setAskAnswer(null);
+    fetch(`${API_BASE}/api/governance/ask`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: askQuestion.trim() })
+    })
+      .then(r => r.json())
+      .then(d => { setAskAnswer(d.answer || d.detail || 'No answer returned.'); setAskLoading(false); })
+      .catch(e => { setAskAnswer(`Error: ${e.message}`); setAskLoading(false); });
+  };
 
   useEffect(() => {
     fetchSubData(subTab);
@@ -2371,6 +2465,74 @@ function GovernanceDashboard({leads, stats, token, onUnauthorized}) {
         </div>
       );
     }
+
+    if (subTab === 'sentry') {
+      const data = sentryData;
+      return (
+        <div>
+          <h3>SENTRY — Anomaly Detection</h3>
+          <p style={{fontSize:13, color:'var(--text-mid)', marginBottom:20}}>
+            Unsupervised IsolationForest over 7 transaction features (volume, timing, night-ratio, weekend-ratio, counterparty diversity).
+            Anomalous leads are flagged and their trust score is docked by 15 points.
+          </p>
+          {!data ? (
+            <div style={{color:'var(--text-low)', fontSize:13, fontStyle:'italic'}}>Loading SENTRY report…</div>
+          ) : (
+            <>
+              <div className="metric-grid" style={{marginBottom:24}}>
+                <div className="metric-card">
+                  <div className="l">Total Leads</div>
+                  <div className="v">{data.total_leads}</div>
+                  <div className="d">In pipeline</div>
+                </div>
+                <div className="metric-card">
+                  <div className="l">Anomalous</div>
+                  <div className="v" style={{color:'#ef4444'}}>{data.flagged_count}</div>
+                  <div className="d">IsolationForest flagged</div>
+                </div>
+                <div className="metric-card">
+                  <div className="l">Flag Rate</div>
+                  <div className="v">{data.total_leads ? (data.flagged_count/data.total_leads*100).toFixed(1) : 0}%</div>
+                  <div className="d">Contamination threshold: 5%</div>
+                </div>
+              </div>
+              {data.flagged_leads && data.flagged_leads.length > 0 ? (
+                <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%', borderCollapse:'collapse', fontSize:13}}>
+                    <thead>
+                      <tr style={{borderBottom:'1px solid var(--border)', color:'var(--text-low)', textAlign:'left'}}>
+                        <th style={{padding:'8px 12px'}}>Customer ID</th>
+                        <th style={{padding:'8px 12px'}}>Name</th>
+                        <th style={{padding:'8px 12px'}}>Employment</th>
+                        <th style={{padding:'8px 12px'}}>Tier</th>
+                        <th style={{padding:'8px 12px', textAlign:'right'}}>Trust Score</th>
+                        <th style={{padding:'8px 12px', textAlign:'right'}}>Fraud Risk</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.flagged_leads.map(r => (
+                        <tr key={r.customer_id} style={{borderBottom:'1px solid var(--border-soft)'}}>
+                          <td style={{padding:'10px 12px', fontFamily:'var(--font-mono)', fontSize:12}}>{r.customer_id}</td>
+                          <td style={{padding:'10px 12px'}}>{r.name}</td>
+                          <td style={{padding:'10px 12px', color:'var(--text-mid)'}}>{r.employment_type}</td>
+                          <td style={{padding:'10px 12px'}}><span className="loan-chip" style={{fontSize:11, padding:'3px 10px'}}>{r.tier}</span></td>
+                          <td style={{padding:'10px 12px', textAlign:'right', fontFamily:'var(--font-mono)'}}>{r.trust_score?.toFixed(1)}</td>
+                          <td style={{padding:'10px 12px', textAlign:'right', fontFamily:'var(--font-mono)', color:'#ef4444', fontWeight:700}}>{r.fraud_risk_score?.toFixed(1)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{color:'var(--text-low)', fontStyle:'italic', fontSize:13}}>
+                  No anomalous leads detected in current dataset. Regenerate data or SENTRY scores may not have run yet.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      );
+    }
   };
 
   return (
@@ -2378,19 +2540,54 @@ function GovernanceDashboard({leads, stats, token, onUnauthorized}) {
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-soft)', paddingBottom: 16, marginBottom: 20}}>
         <div>
           <h2 style={{fontFamily: 'var(--font-display)', fontSize: 22, margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 10}}>
-            <IconShield style={{color: 'var(--teal)'}} /> Algorithmic Governance & Analytics
+            <IconShield style={{color: 'var(--teal)'}} /> Algorithmic Governance &amp; Analytics
           </h2>
-          <div style={{fontSize: 12.5, color: 'var(--text-mid)'}}>Compliance, model self-evaluation metrics, fairness analysis, and ROI optimizer</div>
+          <div style={{fontSize: 12.5, color: 'var(--text-mid)'}}>Compliance, model self-evaluation metrics, fairness analysis, SENTRY anomaly detection, and ROI optimizer</div>
         </div>
       </div>
 
-      <div style={{display: 'flex', gap: 6, marginBottom: 20}}>
+      {/* AI Governance Ask Bar */}
+      <div style={{background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:'14px 18px', marginBottom:18, display:'flex', flexDirection:'column', gap:10}}>
+        <div style={{fontSize:12, fontWeight:600, color:'var(--teal)', letterSpacing:'0.05em', textTransform:'uppercase', display:'flex', alignItems:'center', gap:6}}>
+          <span style={{fontSize:16}}>✦</span> LENS AI — Ask a Governance Question
+        </div>
+        <div style={{display:'flex', gap:8, alignItems:'center'}}>
+          <input
+            id="gov-ask-input"
+            type="text"
+            placeholder="e.g. Are there fairness gaps across employment types? or Which Tier 1 leads have highest fraud risk?"
+            value={askQuestion}
+            onChange={e => setAskQuestion(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && submitAsk()}
+            style={{flex:1, background:'var(--surface-2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 14px', color:'var(--text)', fontSize:13, outline:'none'}}
+          />
+          <button
+            id="gov-ask-submit"
+            onClick={submitAsk}
+            disabled={askLoading || !askQuestion.trim()}
+            style={{background:'var(--teal)', border:'none', borderRadius:8, color:'#fff', padding:'10px 18px', fontSize:13, fontWeight:600, cursor:'pointer', minWidth:80, opacity: (askLoading||!askQuestion.trim()) ? 0.5 : 1}}
+          >
+            {askLoading ? '…' : 'Ask'}
+          </button>
+        </div>
+        {askAnswer && (
+          <div style={{background:'rgba(22,194,174,0.06)', border:'1px solid rgba(22,194,174,0.2)', borderRadius:10, padding:'12px 14px', fontSize:13.5, color:'var(--text)', lineHeight:1.7, whiteSpace:'pre-wrap'}}>
+            {askAnswer}
+          </div>
+        )}
+        {!askAnswer && (
+          <div style={{fontSize:11.5, color:'var(--text-low)'}}>Requires ANTHROPIC_API_KEY to be set on the server. admin and analyst roles only.</div>
+        )}
+      </div>
+
+      <div style={{display: 'flex', gap: 6, marginBottom: 20, flexWrap:'wrap'}}>
         {[
           {id: 'evaluation', label: 'Model Evaluation'},
           {id: 'fairness', label: 'Fairness Audit'},
           {id: 'compliance', label: 'DPDP / RBI Compliance'},
           {id: 'sandbox', label: 'Sandbox Schema'},
-          {id: 'roi', label: 'Business ROI'}
+          {id: 'roi', label: 'Business ROI'},
+          {id: 'sentry', label: '🛡 SENTRY Anomaly'}
         ].map(t => (
           <div key={t.id} className={`chip ${subTab === t.id ? 'active' : ''}`} onClick={() => setSubTab(t.id)}>
             {t.label}

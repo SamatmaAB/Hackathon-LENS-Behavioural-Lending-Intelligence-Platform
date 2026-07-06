@@ -353,10 +353,20 @@ CREATE TABLE IF NOT EXISTS leads (
     intent_score REAL, triggers_fired TEXT,
     synthetic_income REAL, income_accuracy_pct REAL,
     predicted_loan_type TEXT, match_correct INTEGER,
+    predicted_loan_type_source TEXT DEFAULT 'rule_based',
     trust_score REAL, tier TEXT,
     outreach_channel TEXT, outreach_window_start TEXT, outreach_window_end TEXT,
     signal_detected_at TEXT, lead_card_generated_at TEXT, hours_to_lead REAL,
+    fraud_risk_score REAL DEFAULT 0,
+    is_anomalous INTEGER DEFAULT 0,
     FOREIGN KEY(customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS lead_narratives (
+    customer_id TEXT PRIMARY KEY,
+    narrative TEXT,
+    outreach_draft TEXT,
+    objections TEXT,
+    generated_at TEXT
 );
 CREATE TABLE IF NOT EXISTS consent_logs (
     customer_id TEXT,
@@ -406,10 +416,20 @@ CREATE TABLE IF NOT EXISTS leads (
     intent_score DOUBLE PRECISION, triggers_fired TEXT,
     synthetic_income DOUBLE PRECISION, income_accuracy_pct DOUBLE PRECISION,
     predicted_loan_type TEXT, match_correct INTEGER,
+    predicted_loan_type_source TEXT DEFAULT 'rule_based',
     trust_score DOUBLE PRECISION, tier TEXT,
     outreach_channel TEXT, outreach_window_start TEXT, outreach_window_end TEXT,
     signal_detected_at TEXT, lead_card_generated_at TEXT, hours_to_lead DOUBLE PRECISION,
+    fraud_risk_score DOUBLE PRECISION DEFAULT 0,
+    is_anomalous INTEGER DEFAULT 0,
     FOREIGN KEY(customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS lead_narratives (
+    customer_id TEXT PRIMARY KEY,
+    narrative TEXT,
+    outreach_draft TEXT,
+    objections TEXT,
+    generated_at TEXT
 );
 CREATE TABLE IF NOT EXISTS consent_logs (
     customer_id TEXT,

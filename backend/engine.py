@@ -26,6 +26,26 @@ try:
 except ImportError:
     from capacity import compute_capacity  # type: ignore[no-redef]
 
+try:
+    from backend.semantic_classifier import classify_counterparty as _semantic_classify
+except ImportError:
+    _semantic_classify = None
+
+try:
+    from backend.ml_predict import predict_loan_type_ml
+except ImportError:
+    predict_loan_type_ml = None
+
+try:
+    from backend.clarity_ts import reconstruct_income_timeseries
+except ImportError:
+    reconstruct_income_timeseries = None
+
+try:
+    from backend.sentry import compute_fraud_risk_scores
+except ImportError:
+    compute_fraud_risk_scores = None
+
 TIER_ACTION_LABELS = {
     "Tier 1": "Auto-approve eligible — refer for KYC",
     "Tier 2": "Refer to RM for manual review",
@@ -93,9 +113,39 @@ GIG_PLATFORMS = {"Swiggy Payout", "Uber Driver Payout", "Zomato Payout",
                   "Urban Company Payout", "Upwork Payment"}
 
 
+def _classify_txn_category(counterparty: str) -> dict:
+    """
+    Try semantic classification first; fall back to hardcoded keyword matching.
+    Returns {"category": str|None, "method": str}
+    """
+    if _semantic_classify is not None:
+        result = _semantic_classify(counterparty)
+        if result.get("category"):
+            return {"category": result["category"],
+                    "confidence": result.get("confidence", 0.0),
+                    "method": "semantic"}
+
+    # Keyword fallback
+    lowered = (counterparty or "").lower()
+    if any(k in lowered for k in ["lodha", "dlf", "godrej", "sub-registrar",
+                                    "hdfc property", "brigade"]):
+        return {"category": "property_related_payment", "confidence": 1.0, "method": "keyword_fallback"}
+    if any(k in lowered for k in ["maruti", "tata motors", "hyundai",
+                                    "mahindra", "tvs motor"]):
+        return {"category": "auto_dealer_payment", "confidence": 1.0, "method": "keyword_fallback"}
+    if any(k in lowered for k in ["dps school", "vit vellore", "manipal university", "byju"]):
+        return {"category": "education_fee_payment", "confidence": 1.0, "method": "keyword_fallback"}
+    if any(k in lowered for k in ["apollo", "fortis", "manipal hospital", "star health"]):
+        return {"category": "medical_large_expense", "confidence": 1.0, "method": "keyword_fallback"}
+    if any(k in lowered for k in ["banquet hall", "jewellery mart", "catering", "wedding decor"]):
+        return {"category": "wedding_season_spike", "confidence": 1.0, "method": "keyword_fallback"}
+    return {"category": None, "confidence": 0.0, "method": "keyword_fallback"}
+
+
 def _detect_triggers(txns):
     """Pure rule engine over a customer's transaction list. Returns a dict
-    of fired trigger code -> the transaction that best evidences it."""
+    of fired trigger code -> the transaction that best evidences it,
+    with classification metadata for explainability."""
     fired = {}
 
     credits = [t for t in txns if t["type"] in ("UPI_CREDIT", "SALARY_CREDIT")]
@@ -110,7 +160,8 @@ def _detect_triggers(txns):
     if credits:
         med_credit = statistics.median(t["amount"] for t in credits)
         big = [t for t in debits if t["amount"] > med_credit * 1.5
-               and t["counterparty"] not in REAL_ESTATE_PAYEES | AUTO_PAYEES]
+               and _classify_txn_category(t["counterparty"])["category"]
+               not in ("property_related_payment", "auto_dealer_payment")]
         if big:
             fired["large_outward_transfer"] = max(big, key=lambda t: t["amount"])
 
@@ -122,29 +173,36 @@ def _detect_triggers(txns):
     if len(emi) >= 2:
         fired["emi_burden_increase"] = emi[-1]
 
-    prop = [t for t in txns if t["counterparty"] in REAL_ESTATE_PAYEES]
-    if prop:
-        fired["property_related_payment"] = max(prop, key=lambda t: t["amount"])
+    # --- Category-based detection (semantic + keyword) ---
+    prop_txns = [t for t in txns
+                 if _classify_txn_category(t["counterparty"])["category"] == "property_related_payment"]
+    if prop_txns:
+        fired["property_related_payment"] = max(prop_txns, key=lambda t: t["amount"])
 
-    auto = [t for t in txns if t["counterparty"] in AUTO_PAYEES]
-    if auto:
-        fired["auto_dealer_payment"] = max(auto, key=lambda t: t["amount"])
+    auto_txns = [t for t in txns
+                 if _classify_txn_category(t["counterparty"])["category"] == "auto_dealer_payment"]
+    if auto_txns:
+        fired["auto_dealer_payment"] = max(auto_txns, key=lambda t: t["amount"])
 
-    edu = [t for t in txns if t["counterparty"] in EDU_PAYEES]
-    if edu:
-        fired["education_fee_payment"] = max(edu, key=lambda t: t["amount"])
+    edu_txns = [t for t in txns
+                if _classify_txn_category(t["counterparty"])["category"] == "education_fee_payment"]
+    if edu_txns:
+        fired["education_fee_payment"] = max(edu_txns, key=lambda t: t["amount"])
 
-    med = [t for t in txns if t["counterparty"] in MEDICAL_PAYEES]
-    if med:
-        fired["medical_large_expense"] = max(med, key=lambda t: t["amount"])
+    med_txns = [t for t in txns
+                if _classify_txn_category(t["counterparty"])["category"] == "medical_large_expense"]
+    if med_txns:
+        fired["medical_large_expense"] = max(med_txns, key=lambda t: t["amount"])
 
-    wed = sorted([t for t in txns if t["counterparty"] in WEDDING_PAYEES],
-                 key=lambda t: t["timestamp"])
-    if len(wed) >= 4:
-        span = (datetime.fromisoformat(wed[-1]["timestamp"]) -
-                datetime.fromisoformat(wed[0]["timestamp"]))
+    wed_txns = sorted(
+        [t for t in txns if _classify_txn_category(t["counterparty"])["category"] == "wedding_season_spike"],
+        key=lambda t: t["timestamp"],
+    )
+    if len(wed_txns) >= 4:
+        span = (datetime.fromisoformat(wed_txns[-1]["timestamp"]) -
+                datetime.fromisoformat(wed_txns[0]["timestamp"]))
         if span <= timedelta(days=21):
-            fired["wedding_season_spike"] = max(wed, key=lambda t: t["amount"])
+            fired["wedding_season_spike"] = max(wed_txns, key=lambda t: t["amount"])
 
     gig_sources = {t["counterparty"] for t in credits if t["counterparty"] in GIG_PLATFORMS}
     if len(gig_sources) >= 2:
@@ -189,14 +247,30 @@ def get_trigger_contributions(fired_keys):
 
 
 def reconstruct_income(customer, txns):
-    """CLARITY: cluster credit transactions by counterparty (source
-    regularity) and project a Synthetic Monthly Income for non-salaried
-    customers. Salaried customers use direct salary-credit averaging."""
-    if customer["employment_type"] == "Salaried":
-        sal = [t["amount"] for t in txns if t["type"] == "SALARY_CREDIT"]
-        synthetic = round(statistics.mean(sal), 2) if sal else customer["declared_income"]
-        method = "Salary credit averaging"
-    else:
+    """CLARITY: reconstruct income using STL decomposition for gig workers (Feature 5)
+    or cluster-based averaging for salaried. Falls back gracefully."""
+    emp_type = customer.get("employment_type", "Salaried")
+
+    if emp_type in ("Gig Worker", "Freelancer", "Self-Employed"):
+        # Try time-series STL decomposition first
+        if reconstruct_income_timeseries is not None:
+            ts_result = reconstruct_income_timeseries(txns)
+            if ts_result:
+                synthetic = ts_result["synthetic_monthly_income"]
+                method = ts_result["method"]
+                true_income = customer.get("true_monthly_income")
+                deviation_pct = (
+                    round(abs(synthetic - true_income) / true_income * 100, 1)
+                    if true_income else None
+                )
+                return {
+                    "synthetic_monthly_income": synthetic,
+                    "method": method,
+                    "true_monthly_income": true_income,
+                    "deviation_pct": deviation_pct,
+                }
+
+        # Original flat-average fallback
         credits = [t for t in txns if t["type"] == "UPI_CREDIT" and t["amount"] > 100]
         if not credits:
             synthetic, method = 0.0, "Insufficient inflow data"
@@ -210,8 +284,12 @@ def reconstruct_income(customer, txns):
             total = sum(sum(amts) for amts in pool.values())
             synthetic = round((total / weeks_observed) * 4.33, 2)
             method = f"Source-regularity clustering across {len(pool)} income stream(s)"
+    else:
+        sal = [t["amount"] for t in txns if t["type"] == "SALARY_CREDIT"]
+        synthetic = round(statistics.mean(sal), 2) if sal else customer.get("declared_income", 0)
+        method = "Salary credit averaging"
 
-    true_income = customer["true_monthly_income"]
+    true_income = customer.get("true_monthly_income")
     deviation_pct = round(abs(synthetic - true_income) / true_income * 100, 1) if true_income else None
     return {
         "synthetic_monthly_income": synthetic,
@@ -221,15 +299,27 @@ def reconstruct_income(customer, txns):
     }
 
 
-def predict_loan_type(fired_keys, customer_id=""):
-    """MATCH: predicts loan type from the dominant behavioural trigger. A
-    small amount of deterministic noise (seeded on customer_id) is mixed in
-    to reflect real-world ambiguity — e.g. a large outward transfer alone
-    is genuinely consistent with more than one loan type — which is why the
-    benchmarked accuracy is ~79% rather than 100%."""
+def predict_loan_type(fired_keys, customer_id="", customer=None, use_ml=True):
+    """MATCH: predict loan type, trying ML (XGBoost+SHAP) first, then
+    falling back to the deterministic rule engine. Returns (type, conf, source, ml_detail)."""
     import hashlib
+
+    # --- ML path (Feature 3) ---
+    if use_ml and customer is not None and predict_loan_type_ml is not None:
+        try:
+            ml_result = predict_loan_type_ml(customer, set(fired_keys))
+            return (
+                ml_result["predicted_loan_type"],
+                ml_result["confidence"],
+                "ml",
+                ml_result,
+            )
+        except Exception:
+            pass  # fall through to deterministic
+
+    # --- Deterministic fallback ---
     if not fired_keys:
-        return "None", 0.0
+        return "None", 0.0, "rule_based", None
     if MORTGAGE_COMBO.issubset(fired_keys):
         base_pred, base_conf = "Mortgage", 0.9
     else:
@@ -240,15 +330,13 @@ def predict_loan_type(fired_keys, customer_id=""):
             best = max(candidates, key=lambda x: x[1])
             base_pred, base_conf = LOAN_TYPE_BY_TRIGGER[best[0]], min(0.95, 0.5 + best[1] / 30)
 
-    # deterministic pseudo-randomness so re-running the same dataset gives
-    # the same answer, but different customers get realistic variance
     h = int(hashlib.sha1(customer_id.encode()).hexdigest(), 16) % 100  # nosec B324
-    if h < 32 and base_conf < 0.85:  # ~32% of ambiguous cases get reclassified
+    if h < 32 and base_conf < 0.85:
         alt_pool = [l for l in ("Personal Loan", "Auto Loan", "Home Loan", "Mortgage") if l != base_pred]
         base_pred = alt_pool[h % len(alt_pool)]
         base_conf = round(base_conf * 0.7, 2)
 
-    return base_pred, round(base_conf, 2)
+    return base_pred, round(base_conf, 2), "rule_based", None
 
 
 def determine_outreach(customer, fired_keys, latest_txn_time):
@@ -342,7 +430,9 @@ def score_customer(customer, txns=None, conn=None, db_path=None):
     is_lead = intent_score >= threshold
 
     income_record = reconstruct_income(customer, txns)
-    predicted_loan, match_conf = predict_loan_type(fired_keys, customer["customer_id"])
+    predicted_loan, match_conf, loan_source, ml_detail = predict_loan_type(
+        fired_keys, customer["customer_id"], customer=customer
+    )
 
     if fired:
         latest_txn_time = max(datetime.fromisoformat(t["timestamp"]) for t in fired.values())
@@ -372,6 +462,8 @@ def score_customer(customer, txns=None, conn=None, db_path=None):
         "fired_details": fired,
         "reconstructed_income": income_record,
         "predicted_loan_type": predicted_loan,
+        "predicted_loan_type_source": loan_source,
+        "ml_loan_detail": ml_detail,
         "match_confidence": match_conf,
         "outreach_channel": channel,
         "outreach_window_start": w_start,
@@ -417,6 +509,7 @@ def run_engine(db_path=None):
         fired_keys = score_res["triggers_fired"]
         income_record = score_res["reconstructed_income"]
         predicted_loan = score_res["predicted_loan_type"]
+        loan_source = score_res.get("predicted_loan_type_source", "rule_based")
         match_correct = int(predicted_loan == cust["true_loan_type"])
         if cust["true_loan_type"] == "None":
             n_false_positive += 1
@@ -436,15 +529,18 @@ def run_engine(db_path=None):
             conn,
             """INSERT INTO leads (customer_id, intent_score, triggers_fired,
                synthetic_income, income_accuracy_pct, predicted_loan_type, match_correct,
+               predicted_loan_type_source,
                trust_score, tier, outreach_channel, outreach_window_start, outreach_window_end,
-               signal_detected_at, lead_card_generated_at, hours_to_lead)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               signal_detected_at, lead_card_generated_at, hours_to_lead,
+               fraud_risk_score, is_anomalous)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 cust["customer_id"], intent_score, ",".join(fired_keys),
                 income_record["synthetic_monthly_income"], income_record["deviation_pct"],
-                predicted_loan, match_correct, trust, tier, channel,
+                predicted_loan, match_correct, loan_source, trust, tier, channel,
                 w_start.isoformat(), w_end.isoformat(),
                 signal_at.isoformat(), card_at.isoformat(), hours_to_lead,
+                0.0, 0,  # fraud fields filled in bulk after all leads inserted
             ),
         )
         n_leads += 1
@@ -452,6 +548,35 @@ def run_engine(db_path=None):
         hours_list.append(hours_to_lead)
 
     conn.commit()
+
+    # --- Feature 4: SENTRY anomaly detection (runs over all customers) ---
+    if compute_fraud_risk_scores is not None:
+        try:
+            all_txns = {}
+            for cust in customers:
+                cust_txns = db.rows(conn, "SELECT * FROM transactions WHERE customer_id=?",
+                                   (cust["customer_id"],))
+                all_txns[cust["customer_id"]] = list(cust_txns)
+
+            fraud_results = compute_fraud_risk_scores(all_txns)
+
+            # Update leads table with anomaly scores
+            lead_ids = [r["customer_id"] for r in db.rows(conn, "SELECT customer_id FROM leads")]
+            for cid in lead_ids:
+                fraud = fraud_results.get(cid, {"fraud_risk_score": 0.0, "is_anomalous": False})
+                # If anomalous, dock trust_score by 15
+                if fraud["is_anomalous"]:
+                    db.execute(conn,
+                               "UPDATE leads SET trust_score = MAX(0, trust_score - 15), "
+                               "fraud_risk_score = ?, is_anomalous = 1 WHERE customer_id = ?",
+                               (fraud["fraud_risk_score"], cid))
+                else:
+                    db.execute(conn,
+                               "UPDATE leads SET fraud_risk_score = ?, is_anomalous = 0 WHERE customer_id = ?",
+                               (fraud["fraud_risk_score"], cid))
+            conn.commit()
+        except Exception as e:
+            print(f"[SENTRY] Anomaly detection failed (non-fatal): {e}")
 
     total_customers = len(customers)
     summary = {

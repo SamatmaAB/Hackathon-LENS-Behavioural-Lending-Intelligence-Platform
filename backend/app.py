@@ -45,6 +45,17 @@ except ImportError:
 
 from backend import data_gen, db, engine
 
+# Lazy AI imports — won't crash if packages not installed
+try:
+    from backend.ai_narrative import generate_lead_narrative as _gen_narrative
+except ImportError:
+    _gen_narrative = None
+
+try:
+    from backend.ai_query import run_governance_query as _run_gov_query
+except ImportError:
+    _run_gov_query = None
+
 BASE_DIR = os.path.dirname(__file__)
 DEFAULT_DB_PATH = os.path.join(tempfile.gettempdir(), "lens.db") if os.getenv("VERCEL") else os.path.join(BASE_DIR, "lens.db")
 DB_PATH = os.getenv("LENS_DB_PATH", DEFAULT_DB_PATH)
@@ -113,11 +124,39 @@ CREATE TABLE IF NOT EXISTS sessions (
 """
 
 
+def _migrate_database(conn):
+    """Add columns/tables introduced in AI-enhancement milestone to existing DBs."""
+    new_columns = [
+        ("leads", "fraud_risk_score", "REAL DEFAULT 0"),
+        ("leads", "is_anomalous", "INTEGER DEFAULT 0"),
+        ("leads", "predicted_loan_type_source", "TEXT DEFAULT 'rule_based'"),
+    ]
+    for table, col, col_def in new_columns:
+        try:
+            db.execute(conn, f"ALTER TABLE {table} ADD COLUMN {col} {col_def}")
+        except Exception:
+            pass  # Column already exists – safe to ignore
+
+    # Create lead_narratives cache table if not already there
+    lead_narratives_sql = """CREATE TABLE IF NOT EXISTS lead_narratives (
+        customer_id TEXT PRIMARY KEY,
+        narrative TEXT,
+        outreach_draft TEXT,
+        objections TEXT,
+        generated_at TEXT
+    )"""
+    try:
+        db.execute(conn, lead_narratives_sql)
+    except Exception:
+        pass
+
+
 def init_database():
     conn = get_conn()
     if not db.IS_POSTGRES:
         conn.execute("PRAGMA foreign_keys = ON")
     data_gen.create_schema(conn)
+    _migrate_database(conn)
     db.executescript(conn, AUTH_SCHEMA_POSTGRES if db.IS_POSTGRES else AUTH_SCHEMA)
     try:
         exists = db.scalar(conn, "SELECT COUNT(*) FROM settings WHERE key = 'lead_threshold'")
@@ -851,6 +890,196 @@ def get_evaluation_report(user=Depends(require_user)):
         logger = logging.getLogger("lens.app")
         logger.error(f"Error in /api/governance/evaluation: {e}", exc_info=True)
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Feature 1: AI Narrative endpoint
+# ---------------------------------------------------------------------------
+
+@app.post("/api/leads/{customer_id}/narrative")
+def get_lead_narrative(customer_id: str, user=Depends(require_user)):
+    """
+    Generate an AI briefing for a lead: narrative, outreach draft, and likely objections.
+    Checks the lead_narratives cache first; only calls Claude if missing or stale.
+    """
+    if _gen_narrative is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail="AI narrative not available: anthropic package not installed")
+
+    conn = get_conn()
+    cust_row = db.one(conn, "SELECT * FROM customers WHERE customer_id=?", (customer_id,))
+    if not cust_row:
+        conn.close()
+        raise HTTPException(404, "Customer not found")
+
+    lead_row = db.one(conn, "SELECT * FROM leads WHERE customer_id=?", (customer_id,))
+    if not lead_row:
+        conn.close()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Customer is not a qualified lead")
+
+    # Check cache: use cached narrative unless lead was updated after narrative was generated
+    cached = db.one(conn, "SELECT * FROM lead_narratives WHERE customer_id=?", (customer_id,))
+    lead_updated_at = lead_row.get("lead_card_generated_at", "")
+    if cached:
+        cached_at = cached.get("generated_at", "")
+        if cached_at and lead_updated_at and cached_at >= lead_updated_at:
+            conn.close()
+            import json as _json
+            return {
+                "narrative":      cached["narrative"],
+                "outreach_draft": cached["outreach_draft"],
+                "objections":     _json.loads(cached["objections"] or "[]"),
+                "cached":         True,
+            }
+
+    conn.close()
+
+    # Assemble the lead payload exactly as the GET /api/leads/{id} endpoint does
+    detail = lead_detail(customer_id, user)
+    try:
+        result = _gen_narrative(detail)
+    except Exception as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=f"Narrative generation failed: {str(e)}")
+
+    # Cache the result
+    import json as _json
+    now_str = format_utc_datetime(datetime.now(UTC))
+    conn = get_conn()
+    try:
+        db.execute(
+            conn,
+            """INSERT OR REPLACE INTO lead_narratives
+               (customer_id, narrative, outreach_draft, objections, generated_at)
+               VALUES (?,?,?,?,?)""",
+            (customer_id,
+             result.get("narrative", ""),
+             result.get("outreach_draft", ""),
+             _json.dumps(result.get("objections", [])),
+             now_str),
+        )
+        db.execute(
+            conn,
+            "INSERT INTO access_logs (user_id, customer_id, action, accessed_at) VALUES (?,?,?,?)",
+            (user["user_id"], customer_id, "VIEW_AI_NARRATIVE", now_str),
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[narrative] Cache write failed: {e}")
+    finally:
+        conn.close()
+
+    result["cached"] = False
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Feature 4: SENTRY anomaly governance endpoint
+# ---------------------------------------------------------------------------
+
+@app.get("/api/governance/anomalies")
+def get_anomaly_report(user=Depends(require_user)):
+    """
+    Returns leads flagged as anomalous by the SENTRY IsolationForest detector.
+    """
+    conn = get_conn()
+    try:
+        rows = db.rows(
+            conn,
+            """SELECT l.customer_id, c.name, c.employment_type,
+                      l.fraud_risk_score, l.is_anomalous, l.tier, l.trust_score
+               FROM leads l
+               JOIN customers c ON l.customer_id = c.customer_id
+               ORDER BY l.fraud_risk_score DESC""",
+        )
+        all_leads_count = db.scalar(conn, "SELECT COUNT(*) FROM leads")
+        flagged = [dict(r) for r in rows if r["is_anomalous"]]
+    finally:
+        conn.close()
+    return {
+        "total_leads": all_leads_count,
+        "flagged_count": len(flagged),
+        "flagged_leads": flagged,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Feature 3: Admin retrain endpoint
+# ---------------------------------------------------------------------------
+
+@app.post("/api/admin/retrain")
+def retrain_model(user=Depends(require_admin)):
+    """
+    Trigger offline retraining of the XGBoost loan-type model (admin only).
+    """
+    try:
+        from backend.train_models import train_loan_type_model
+        accuracy = train_loan_type_model(DB_PATH)
+        # Reset lazy-load flag so ml_predict picks up new artifacts
+        try:
+            import backend.ml_predict as _ml
+            _ml._load_attempted = False
+            _ml._model = None
+        except Exception:
+            pass
+        return {"ok": True, "accuracy": accuracy, "message": "Model retrained successfully"}
+    except Exception as e:
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Training failed: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# Feature 6: Natural-language governance query
+# ---------------------------------------------------------------------------
+
+class GovernanceAskPayload(BaseModel):
+    question: str
+
+
+@app.post("/api/governance/ask")
+def ask_governance(payload: GovernanceAskPayload, user=Depends(require_user)):
+    """
+    Answer a plain-English governance question using Claude with tool-calling
+    over existing /api/leads and /api/governance/* handlers.
+    Admin and analyst roles only.
+    """
+    if user["role"] not in ("admin", "analyst"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin or analyst role required")
+
+    if _run_gov_query is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail="AI query not available: anthropic package not installed")
+
+    question = payload.question.strip()
+    if not question:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "question required")
+
+    def tool_executor(name: str, tool_input: dict):
+        """Bridge Claude tool calls to existing internal functions."""
+        try:
+            if name == "get_leads":
+                tier   = tool_input.get("tier")
+                search = tool_input.get("search")
+                result = list_leads(tier=tier, search=search, user=user)
+                return result[:50] if isinstance(result, list) else result
+
+            if name == "get_fairness_report":
+                return governance.generate_fairness_report(DB_PATH)
+
+            if name == "get_roi_report":
+                return governance.generate_roi_report(DB_PATH)
+
+            if name == "get_anomaly_report":
+                return get_anomaly_report(user)
+
+        except Exception as e:
+            return {"error": str(e)}
+        return {"error": f"unknown tool: {name}"}
+
+    try:
+        answer = _run_gov_query(question, tool_executor)
+    except Exception as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=f"Query failed: {str(e)}")
+
+    return {"answer": answer}
 
 
 class ConsentPayload(BaseModel):
