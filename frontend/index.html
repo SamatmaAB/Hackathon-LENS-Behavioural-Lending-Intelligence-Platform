@@ -2014,14 +2014,15 @@ function GovernanceDashboard({leads, stats, token, onUnauthorized}) {
                 </table>
             </div>
           </div>
-
-          <div style={{display: 'grid', gridTemplateColumns: '1.2fr 1.1fr', gap: 24, marginTop: 28}}>
-            <ConfusionMatrixHeatmap matrix={matrixArray} labels={classes} />
-            <TriggerCooccurrenceMatrix triggerNames={triggerNames} coMatrix={coMatrix} />
-          </div>
         </div>
-      );
-    }
+
+        <div style={{display: 'grid', gridTemplateColumns: '1.2fr 1.1fr', gap: 24, marginTop: 28}}>
+          <ConfusionMatrixHeatmap matrix={matrixArray} labels={classes} />
+          <TriggerCooccurrenceMatrix triggerNames={triggerNames} coMatrix={coMatrix} />
+        </div>
+      </div>
+    );
+  }
 
     if (subTab === 'fairness' && fairnessData) {
       const {segments, best_performing_segment, best_conversion_rate_pct, flagged_segments, recommendation_summary} = fairnessData;
