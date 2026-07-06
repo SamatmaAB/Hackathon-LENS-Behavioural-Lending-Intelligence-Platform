@@ -13,7 +13,10 @@ import random
 import sqlite3
 from datetime import datetime, timedelta
 
-from backend import db
+try:
+    from backend import db
+except ImportError:
+    import db
 
 FIRST_NAMES = [
     "Aarav", "Vivaan", "Aditya", "Vihaan", "Arjun", "Sai", "Reyansh", "Ayaan",
