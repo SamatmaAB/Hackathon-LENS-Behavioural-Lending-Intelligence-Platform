@@ -957,13 +957,13 @@ function PrintableReport({ customer, lead, income_breakdown, capacity, transacti
               <tbody>
                 {Object.entries(capacity.eligible_amount_by_type).map(([ltype, amt]) => {
                   const isRecommended = ltype === normalize_loan_type(capacity.recommended_loan_type);
-                  const rate = capacity.assumptions.assumed_annual_rates[ltype] || 0;
-                  const tenure = capacity.assumptions.assumed_tenure_months[ltype] || 0;
+                  const rate = capacity.assumptions.assumed_rates?.[ltype] || capacity.assumptions.assumed_rates?.[normalize_loan_type(ltype)] || 0;
+                  const tenure = capacity.assumptions.assumed_tenure_months?.[ltype] || capacity.assumptions.assumed_tenure_months?.[normalize_loan_type(ltype)] || 0;
                   return (
                     <tr key={ltype} style={isRecommended ? { background: '#f0fdf4', fontWeight: 'bold' } : undefined}>
                       <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb' }}>{ltype} {isRecommended && "(Recommended)"}</td>
                       <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', fontFamily: 'monospace' }}>{fmtINR(amt)}</td>
-                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', fontFamily: 'monospace' }}>{(rate * 100).toFixed(1)}%</td>
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', fontFamily: 'monospace' }}>{rate.toFixed(1)}%</td>
                       <td style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb', textAlign: 'right', fontFamily: 'monospace' }}>{tenure} months</td>
                     </tr>
                   );
