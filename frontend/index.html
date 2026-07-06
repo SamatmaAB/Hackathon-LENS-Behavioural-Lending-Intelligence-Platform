@@ -674,8 +674,6 @@ const API_BASE = (() => {
   return window.location.origin;
 })();
 const storageKey = 'lens_auth_v2';
-const API_BASE = new URLSearchParams(window.location.search).get('api') || window.location.origin;
-const storageKey = 'lens_auth';
 const emptyCustomer = {
   customer_id:'', name:'', age:32, city:'', state:'', employment_type:'Salaried',
   declared_income:'', true_monthly_income:'', true_loan_type:'None', persona:'manual'
