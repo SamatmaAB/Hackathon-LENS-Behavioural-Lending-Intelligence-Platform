@@ -17,13 +17,10 @@ import secrets
 import tempfile
 import hashlib
 import hmac
-<<<<<<< Updated upstream
 import logging
-=======
 import os
 import secrets
 import tempfile
->>>>>>> Stashed changes
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
@@ -31,17 +28,14 @@ from fastapi import FastAPI, HTTPException, Query, Header, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-<<<<<<< Updated upstream
 try:
     from backend import data_gen, db, engine, governance
 except ImportError:
     import data_gen, db, engine, governance  # type: ignore[no-redef]
 
 
-=======
 from backend import data_gen, db, engine
 
->>>>>>> Stashed changes
 BASE_DIR = os.path.dirname(__file__)
 DEFAULT_DB_PATH = os.path.join(tempfile.gettempdir(), "lens.db") if os.getenv("VERCEL") else os.path.join(BASE_DIR, "lens.db")
 DB_PATH = os.getenv("LENS_DB_PATH", DEFAULT_DB_PATH)
@@ -61,13 +55,10 @@ app.add_middleware(
 
 def get_conn():
     return db.connect(DB_PATH)
-<<<<<<< Updated upstream
 
 
 def db_exists():
     return os.path.exists(DB_PATH)
-=======
->>>>>>> Stashed changes
 
 
 AUTH_SCHEMA = """
@@ -117,12 +108,9 @@ def init_database():
         conn.execute("PRAGMA foreign_keys = ON")
     data_gen.create_schema(conn)
     db.executescript(conn, AUTH_SCHEMA_POSTGRES if db.IS_POSTGRES else AUTH_SCHEMA)
-<<<<<<< Updated upstream
-=======
     user_count = db.scalar(conn, "SELECT COUNT(*) FROM users")
     if user_count == 0:
         data_gen.clear_customer_data(conn)
->>>>>>> Stashed changes
     conn.commit()
     conn.close()
 
@@ -172,7 +160,7 @@ def ensure_schema_and_data():
         customer_count = db.scalar(conn, "SELECT COUNT(*) FROM customers")
         conn.close()
         if customer_count == 0:
-            data_gen.build_current_database(n_customers=150, seed=42)
+            data_gen.build_current_database(n_customers=150, seed=42, db_path=DB_PATH)
             engine.run_engine(DB_PATH)
 
 
@@ -493,7 +481,7 @@ def admin_create_user(payload: CreateUserRequest, admin: dict = Depends(require_
 @app.post("/api/generate")
 def generate(n_customers: int = Query(150, ge=20, le=1000), seed: int = Query(None), user=Depends(require_write_user)):
     seed = seed if seed is not None else datetime.now().microsecond
-    n_cust, n_txn = data_gen.build_current_database(n_customers=n_customers, seed=seed)
+    n_cust, n_txn = data_gen.build_current_database(n_customers=n_customers, seed=seed, db_path=DB_PATH)
     init_database()
     summary = engine.run_engine(DB_PATH)
     return {"customers_generated": n_cust, "transactions_generated": n_txn, **summary}
