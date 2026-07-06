@@ -453,6 +453,11 @@ function fmtINR(n) {
   return '₹' + Number(n).toLocaleString('en-IN', {maximumFractionDigits: 0});
 }
 
+function normalize_loan_type(loan_type) {
+  if (loan_type === "Mortgage") return "Mortgage Loan";
+  return loan_type;
+}
+
 function fmtRelTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -549,7 +554,7 @@ function KPIStrip({stats}) {
   return (
     <div className="kpi-strip">
       {items.map((it, i) => (
-        <div className="kpi" key={i}>
+        <div className="kpi" key={i} title={it.label === 'Conversion Rate' ? "% of flagged leads whose ground-truth persona matches genuine loan intent, evaluated against the synthetic labels generated with noise_level=20%" : undefined}>
           <div className="label">{it.label}</div>
           <div className="value">{it.value}</div>
           <div className="bench">{it.bench}</div>
@@ -570,7 +575,7 @@ function LeadCard({lead, selected, onClick}) {
           <div className="lead-name">{lead.name}</div>
           <div className="lead-meta">{lead.customer_id} · {lead.employment_type} · {lead.city}</div>
         </div>
-        <span className={`tier-badge ${tierClass}`}>{lead.tier.toUpperCase()}</span>
+        <span className={`tier-badge ${tierClass}`} title={lead.tier_action_label || ''}>{lead.tier.toUpperCase()}</span>
       </div>
       <div className="lead-card-mid">
         <div className="pulse-mini">
@@ -638,6 +643,7 @@ function DetailPanel({customerId, token, onUnauthorized}) {
         <div>
           <h2>{customer.name}</h2>
           <div className="detail-sub">{customer.customer_id} · {customer.age} yrs · {customer.employment_type} · {customer.city}, {customer.state}</div>
+          <div style={{fontSize: 12.5, color: 'var(--teal)', marginTop: 5, fontWeight: 600}}>⚡ Underwriter Action: {lead.tier_action_label || 'Refer to RM for manual review'}</div>
         </div>
         <div className="score-ring-wrap">
           <ScoreRing value={lead.intent_score} label="Intent" color="var(--amber)" />
@@ -649,7 +655,7 @@ function DetailPanel({customerId, token, onUnauthorized}) {
         <div className="metric-card">
           <div className="l">Predicted Loan Type</div>
           <div className="v">{lead.predicted_loan_type}</div>
-          <div className="d">Lead Tier — {lead.tier}</div>
+          <div className="d">{lead.tier} — {lead.tier_action_label || 'Refer to RM'}</div>
         </div>
         <div className="metric-card">
           <div className="l">Signal → Lead Card</div>
@@ -700,6 +706,94 @@ function DetailPanel({customerId, token, onUnauthorized}) {
           </div>
         </div>
       </div>
+
+      <div className="section-title"><span className="dot"></span>CAPACITY — Repayment Capacity & Loan Eligibility</div>
+      {lead.capacity ? (
+        <div className="income-panel" style={{display:'flex', flexDirection:'column', gap:18}}>
+          {/* Reconstructed vs Declared */}
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, width:'100%'}}>
+            <div className="income-figure">
+              <div className="lbl">Reconstructed Income</div>
+              <div className="big" style={{color:'var(--teal)'}}>{fmtINR(lead.capacity.reconstructed_income)}</div>
+            </div>
+            <div className="income-figure">
+              <div className="lbl">Declared Income</div>
+              <div className="big" style={{color:'var(--text-low)'}}>{fmtINR(lead.capacity.declared_income)}</div>
+            </div>
+          </div>
+
+          {/* Disposable Income, existing EMI detected, safe EMI ceiling (3-bar breakdown) */}
+          <div className="income-bars" style={{width:'100%', borderTop:'1px solid var(--border-soft)', paddingTop:14}}>
+            <div className="income-bar-row">
+              <div className="ib-label">Existing EMI</div>
+              <div className="income-bar-track">
+                <div className="income-bar-fill" style={{width: `${Math.min(100, (lead.capacity.existing_emi_monthly / (lead.capacity.reconstructed_income || 1)) * 100)}%`, background:'var(--red)'}}></div>
+              </div>
+              <div className="ib-val" style={{color:'var(--red)'}}>{fmtINR(lead.capacity.existing_emi_monthly)}</div>
+            </div>
+            <div className="income-bar-row">
+              <div className="ib-label">Safe EMI Ceiling</div>
+              <div className="income-bar-track">
+                <div className="income-bar-fill" style={{width: `${Math.min(100, (lead.capacity.safe_emi_ceiling / (lead.capacity.reconstructed_income || 1)) * 100)}%`, background:'var(--teal)'}}></div>
+              </div>
+              <div className="ib-val" style={{color:'var(--teal)'}}>{fmtINR(lead.capacity.safe_emi_ceiling)}</div>
+            </div>
+            <div className="income-bar-row">
+              <div className="ib-label">Disposable Income</div>
+              <div className="income-bar-track">
+                <div className="income-bar-fill" style={{width: `${Math.min(100, (lead.capacity.disposable_income / (lead.capacity.reconstructed_income || 1)) * 100)}%`, background:'var(--text-mid)'}}></div>
+              </div>
+              <div className="ib-val">{fmtINR(lead.capacity.disposable_income)}</div>
+            </div>
+          </div>
+
+          {lead.capacity.over_leveraged && (
+            <div style={{background:'rgba(229,72,77,0.1)', border:'1px solid var(--red)', borderRadius:8, padding:'10px 14px', color:'var(--red)', fontSize:12.5, width:'100%'}}>
+              ⚠️ <b>Over-Leveraged Lead:</b> Detected debt obligations exceed 60% of reconstructed income.
+            </div>
+          )}
+
+          {/* Comparison table */}
+          <div style={{width:'100%', borderTop:'1px solid var(--border-soft)', paddingTop:14}}>
+            <div style={{fontSize:11, fontWeight:600, color:'var(--text-low)', textTransform:'uppercase', letterSpacing:'.5px', marginBottom:8}}>Loan Eligibility Comparison</div>
+            <table className="txn-table" style={{marginTop:0}}>
+              <thead>
+                <tr>
+                  <th style={{padding:'6px 8px'}}>Loan Product</th>
+                  <th style={{padding:'6px 8px', textAlign:'right'}}>Eligible Amount</th>
+                  <th style={{padding:'6px 8px', textAlign:'right'}}>Tenure</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(lead.capacity.eligible_amount_by_type).map(([ltype, amt]) => {
+                  const isRecommended = ltype === normalize_loan_type(lead.capacity.recommended_loan_type);
+                  const tenure = lead.capacity.assumptions.assumed_tenure_months[ltype] || 0;
+                  return (
+                    <tr key={ltype} style={isRecommended ? {background:'rgba(22,194,174,0.06)'} : undefined}>
+                      <td style={{padding:'8px', fontWeight: isRecommended ? 'bold' : 'normal', color: isRecommended ? 'var(--teal)' : 'var(--text-mid)'}}>
+                        {ltype} {isRecommended && <span style={{fontSize:9, background:'rgba(22,194,174,0.15)', color:'var(--teal)', padding:'1px 5px', borderRadius:4, marginLeft:6}}>REC</span>}
+                      </td>
+                      <td className="amt" style={{padding:'8px', textAlign:'right', fontWeight: isRecommended ? 'bold' : 'normal', color: isRecommended ? 'var(--teal)' : 'var(--text-hi)'}}>
+                        {fmtINR(amt)}
+                      </td>
+                      <td style={{padding:'8px', textAlign:'right', color:'var(--text-mid)'}}>
+                        {tenure} months
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* assumptions disclosure */}
+          <div style={{fontSize:11, color:'var(--text-low)', fontStyle:'italic', width:'100%'}}>
+            * Assumes Personal 13%, Auto 9.5%, Home 8.5%, Mortgage 9% p.a. — RM should verify against current rate card. Applied FOIR: {(lead.capacity.foir_ratio_applied * 100).toFixed(1)}%. DTI: {(lead.capacity.dti_ratio * 100).toFixed(1)}%.
+          </div>
+        </div>
+      ) : (
+        <div style={{color:'var(--text-low)', fontSize:12.5, fontStyle:'italic'}}>Capacity details unavailable.</div>
+      )}
 
       <div className="section-title"><span className="dot"></span>MOMENT — Recommended Outreach</div>
       <div className="outreach-card">
@@ -849,23 +943,32 @@ function GovernanceDashboard({token, onUnauthorized}) {
             
             <div>
               <h4 style={{margin: '0 0 12px'}}>Class Metrics Breakdown</h4>
-              <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
-                {classes.map(c => {
-                  const m = class_metrics[c] || {precision: 0, recall: 0, f1_score: 0, tp: 0, fp: 0, fn: 0};
-                  return (
-                    <div key={c} style={{background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 10, padding: '12px 16px'}}>
-                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6}}>
-                        <b style={{fontSize: 13, color: 'var(--text-hi)'}}>{c}</b>
-                        <span style={{fontSize: 11, color: 'var(--text-low)'}}>TP: {m.tp} | FP: {m.fp} | FN: {m.fn}</span>
-                      </div>
-                      <div style={{display: 'flex', gap: 16, fontSize: 12}}>
-                        <div><span style={{color: 'var(--text-low)'}}>Precision:</span> <b style={{color: 'var(--text-hi)'}}>{m.precision}%</b></div>
-                        <div><span style={{color: 'var(--text-low)'}}>Recall:</span> <b style={{color: 'var(--text-hi)'}}>{m.recall}%</b></div>
-                        <div><span style={{color: 'var(--text-low)'}}>F1:</span> <b style={{color: 'var(--text-hi)'}}>{m.f1_score}%</b></div>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div style={{background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 16, overflowX: 'auto'}}>
+                <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 12.5, textAlign: 'left'}}>
+                  <thead>
+                    <tr>
+                      <th style={{padding: '8px 4px', borderBottom: '1px solid var(--border)', fontWeight: 600}}>Loan Product</th>
+                      <th style={{padding: '8px 4px', borderBottom: '1px solid var(--border)', fontWeight: 600, textAlign: 'right'}}>Precision</th>
+                      <th style={{padding: '8px 4px', borderBottom: '1px solid var(--border)', fontWeight: 600, textAlign: 'right'}}>Recall</th>
+                      <th style={{padding: '8px 4px', borderBottom: '1px solid var(--border)', fontWeight: 600, textAlign: 'right'}}>F1 Score</th>
+                      <th style={{padding: '8px 4px', borderBottom: '1px solid var(--border)', fontWeight: 600, color: 'var(--text-low)', fontSize: 11, textAlign: 'right'}}>TP/FP/FN</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {["Home Loan", "Auto Loan", "Personal Loan", "Mortgage"].map(c => {
+                      const m = class_metrics[c] || {precision: 0, recall: 0, f1_score: 0, tp: 0, fp: 0, fn: 0};
+                      return (
+                        <tr key={c}>
+                          <td style={{padding: '10px 4px', borderBottom: '1px solid var(--border-soft)', fontWeight: 600, color: 'var(--text-mid)'}}>{c}</td>
+                          <td style={{padding: '10px 4px', borderBottom: '1px solid var(--border-soft)', fontFamily: 'var(--font-mono)', textAlign: 'right'}}>{m.precision}%</td>
+                          <td style={{padding: '10px 4px', borderBottom: '1px solid var(--border-soft)', fontFamily: 'var(--font-mono)', textAlign: 'right'}}>{m.recall}%</td>
+                          <td style={{padding: '10px 4px', borderBottom: '1px solid var(--border-soft)', fontFamily: 'var(--font-mono)', color: 'var(--teal)', fontWeight: 'bold', textAlign: 'right'}}>{m.f1_score}%</td>
+                          <td style={{padding: '10px 4px', borderBottom: '1px solid var(--border-soft)', color: 'var(--text-low)', fontSize: 11, textAlign: 'right'}}>{m.tp}/{m.fp}/{m.fn}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

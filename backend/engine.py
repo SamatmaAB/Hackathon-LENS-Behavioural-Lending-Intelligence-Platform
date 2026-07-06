@@ -21,6 +21,17 @@ try:
 except ImportError:
     import db  # type: ignore[no-redef]
 
+try:
+    from backend.capacity import compute_capacity
+except ImportError:
+    from capacity import compute_capacity  # type: ignore[no-redef]
+
+TIER_ACTION_LABELS = {
+    "Tier 1": "Auto-approve eligible — refer for KYC",
+    "Tier 2": "Refer to RM for manual review",
+    "Tier 3": "Insufficient signal — do not action",
+}
+
 # ---------------------------------------------------------------------------
 # PULSE: the 14 behavioural triggers, with their weight in the Intent Score.
 # Weights sum to 100; a customer needs roughly 2-3 strong triggers to clear
@@ -341,6 +352,18 @@ def score_customer(customer, txns=None, conn=None, db_path=None):
     channel, w_start, w_end = determine_outreach(customer, fired_keys, latest_txn_time)
     trust, tier, income_confidence, repay_score = compute_trust_score(intent_score, income_record, fired_keys)
 
+    recon_inc = income_record["synthetic_monthly_income"]
+    decl_inc = customer.get("declared_income")
+    capacity_res = compute_capacity(
+        customer_id=customer["customer_id"],
+        transactions=txns,
+        reconstructed_income=recon_inc,
+        declared_income=decl_inc,
+        predicted_loan_type=predicted_loan,
+        repay_score=repay_score
+    )
+    tier_action_label = TIER_ACTION_LABELS.get(tier, "Insufficient signal — do not action")
+
     return {
         "customer_id": customer["customer_id"],
         "intent_score": intent_score,
@@ -355,8 +378,10 @@ def score_customer(customer, txns=None, conn=None, db_path=None):
         "outreach_window_end": w_end,
         "trust_score": trust,
         "tier": tier,
+        "tier_action_label": tier_action_label,
         "income_confidence": income_confidence,
         "repay_score": repay_score,
+        "capacity": capacity_res,
         "latest_txn_time": latest_txn_time
     }
 

@@ -423,6 +423,7 @@ def generate_evaluation_report(db_path: Optional[str] = None) -> Dict[str, Any]:
     """
     Computes a multi-class confusion matrix and validation metrics (TP, FP, FN, 
     Precision, Recall, F1) for loan type predictions across all customers in the database.
+    Provides a per_loan_type precision, recall, and f1 breakdown.
     """
     logger.info("Generating evaluation report")
     conn = db.connect(db_path)

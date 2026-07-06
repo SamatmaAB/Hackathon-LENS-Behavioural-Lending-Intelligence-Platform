@@ -565,6 +565,7 @@ def list_leads(tier: str = None, search: str = None, sort: str = "trust_score",
     for r in rows:
         r["triggers_fired"] = r["triggers_fired"].split(",") if r["triggers_fired"] else []
         r["trigger_labels"] = [engine.TRIGGER_LABELS.get(t, t) for t in r["triggers_fired"]]
+        r["tier_action_label"] = engine.TIER_ACTION_LABELS.get(r["tier"], "Insufficient signal — do not action")
     return rows
 
 
@@ -611,6 +612,14 @@ def lead_detail(customer_id: str, user=Depends(require_user)):
 
         # recompute the live income breakdown so the UI can show the method/clusters
         result["income_breakdown"] = engine.reconstruct_income(cust, txns)
+
+        # recompute dynamic capacity details
+        scored = engine.score_customer(cust, txns=txns)
+        if scored:
+            # Wires capacity: CapacityResult to lead detail response
+            result["capacity"] = scored.get("capacity")
+            lead["capacity"] = scored.get("capacity")
+            lead["tier_action_label"] = scored.get("tier_action_label")
 
     return result
 

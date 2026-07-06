@@ -94,6 +94,14 @@ channel and window, and the underlying transaction stream that produced it.
   (a home-loan-intent persona, an auto-loan persona, etc.) so the engine has
   real signal to detect — it isn't fed pre-labelled answers.
 
+## Conversion Rate & Underwriting Methodology
+
+**Conversion Rate Definition:** In the LENS simulation, the conversion rate is defined as the percentage of flagged leads whose ground-truth persona matches genuine loan intent (i.e. has a true loan type other than "None"), evaluated against the synthetic labels generated with a configurable dataset noise (default `noise_level=20%`).
+
+**Underwriting & Capacity Assumptions:** The CAPACITY module utilizes standard Fixed Obligation to Income Ratio (FOIR) bands (Personal Loan: 40-50%, Auto Loan: 45-55%, Home Loan: 50-60%, Mortgage Loan: 50-55%) and retail interest rate/tenure assumptions (Personal: 13.0% APR / 60m, Auto: 9.5% APR / 84m, Home: 8.5% APR / 240m, Mortgage: 9.0% APR / 180m) to calculate prudent repayment limits and eligible principal amounts. In a production deployment, these rates and bands would be pulled dynamically from live bank rate cards.
+
+**Granular Accuracy Breakdown:** To support underwriting precision auditing, the Governance tab now displays a per-loan-type accuracy breakdown (Precision, Recall, and F1-score for Personal/Auto/Home/Mortgage products) alongside the aggregate model metrics.
+
 ## Governance, Compliance & Business ROI
 
 We run a suite of automated governance metrics dynamically against our SQLite data store to audit fairness, regulatory compliance, sandbox schemas, and return-on-investment (ROI).
