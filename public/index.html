@@ -512,6 +512,11 @@ const API_BASE = (() => {
   return window.location.origin;
 })();
 const storageKey = 'lens_auth_v2';
+const emptyCustomer = {
+  customer_id:'', name:'', age:32, city:'', state:'', employment_type:'Salaried',
+  declared_income:'', true_monthly_income:'', true_loan_type:'None', persona:'manual'
+};
+const emptyTxn = {customer_id:'', type:'SALARY_CREDIT', amount:'', counterparty:'Employer Payroll', timestamp:''};
 
 const TIER_COLORS = {'Tier 1': 'var(--tier1)', 'Tier 2': 'var(--tier2)', 'Tier 3': 'var(--tier3)'};
 
