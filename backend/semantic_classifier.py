@@ -18,29 +18,27 @@ _anchor_embeddings = {}
 
 CATEGORY_ANCHORS = {
     "property_related_payment": [
-        "real estate developer payment", "property purchase installment",
-        "sub-registrar office stamp duty", "home construction payment",
-        "builder payment for apartment",
+        "Lodha Developers", "Godrej Properties", "DLF Homes", "Prestige Properties", "Brigade Group",
+        "real estate builder payment", "property purchase installment", "apartment construction booking", "sub-registrar registry stamp duty"
     ],
     "auto_dealer_payment": [
-        "car dealership payment", "automobile showroom purchase",
-        "two wheeler dealer payment", "vehicle down payment",
+        "Maruti Suzuki Showroom", "Tata Motors Dealer", "Hyundai Motors Dealer", "Mahindra Auto Showroom", "TVS Motor Showroom",
+        "car dealer purchase", "automobile showroom downpayment", "two wheeler dealership installment"
     ],
     "education_fee_payment": [
-        "school tuition fee payment", "university fee payment",
-        "college admission fee", "online course payment",
+        "DPS School Fees", "VIT Vellore Fees", "Manipal University admission", "school tuition fee payment", "college semester fees payment",
+        "academic course fees"
     ],
     "medical_large_expense": [
-        "hospital bill payment", "health insurance premium",
-        "medical treatment expense", "diagnostic center payment",
+        "Apollo Hospital bill", "Fortis Healthcare billing", "hospital treatment cost", "clinical surgery payment",
+        "health insurance premium"
     ],
     "wedding_season_spike": [
-        "banquet hall booking payment", "wedding caterer payment",
-        "jewellery purchase", "wedding decorator payment",
-    ],
+        "Banquet Hall booking payment", "Wedding Decorator services", "bridal jewellery purchase", "marriage catering services", "wedding ceremony spending"
+    ]
 }
 
-SIMILARITY_THRESHOLD = 0.45
+SIMILARITY_THRESHOLD = 0.42
 
 
 def _load_model():

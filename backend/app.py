@@ -773,22 +773,32 @@ def lead_detail(customer_id: str, user=Depends(require_user)):
         lead = lead_row
         triggers = lead["triggers_fired"].split(",") if lead["triggers_fired"] else []
         contribs = engine.get_trigger_contributions(triggers)
-        lead["triggers_fired"] = [
-            {
+
+        # recompute dynamic capacity details and get trigger transaction evidence
+        scored = engine.score_customer(cust, txns=txns)
+        fired_details = scored.get("fired_details", {}) if scored else {}
+
+        lead["triggers_fired"] = []
+        for t in triggers:
+            txn = fired_details.get(t)
+            conf, method = 1.0, "keyword_fallback"
+            if txn:
+                cls_res = engine._classify_txn_category(txn["counterparty"])
+                conf = cls_res.get("confidence", 1.0)
+                method = cls_res.get("method", "keyword_fallback")
+            lead["triggers_fired"].append({
                 "code": t,
                 "label": engine.TRIGGER_LABELS.get(t, t),
                 "weight": engine.TRIGGER_WEIGHTS.get(t, 0),
-                "contribution": contribs.get(t, 0.0)
-            }
-            for t in triggers
-        ]
+                "contribution": contribs.get(t, 0.0),
+                "classification_confidence": conf,
+                "classification_method": method
+            })
         result["lead"] = lead
 
         # recompute the live income breakdown so the UI can show the method/clusters
         result["income_breakdown"] = engine.reconstruct_income(cust, txns)
 
-        # recompute dynamic capacity details
-        scored = engine.score_customer(cust, txns=txns)
         if scored:
             # Wires capacity: CapacityResult to lead detail response
             result["capacity"] = scored.get("capacity")
