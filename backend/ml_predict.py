@@ -23,13 +23,12 @@ FEATURE_TRIGGER_CODES = [
 _model = None
 _encoder = None
 _feature_columns = None
-_explainer = None
+_importances = None
 _load_attempted = False
-
 
 def _load_artifacts():
     """Attempt to load model artifacts. Sets globals; returns True on success."""
-    global _model, _encoder, _feature_columns, _explainer, _load_attempted
+    global _model, _encoder, _feature_columns, _importances, _load_attempted
     if _load_attempted:
         return _model is not None
     _load_attempted = True
@@ -37,18 +36,18 @@ def _load_artifacts():
     model_path    = os.path.join(_MODELS_DIR, "loan_type_model.joblib")
     encoder_path  = os.path.join(_MODELS_DIR, "loan_type_encoder.joblib")
     features_path = os.path.join(_MODELS_DIR, "loan_type_features.joblib")
+    importances_path = os.path.join(_MODELS_DIR, "loan_type_importances.joblib")
 
-    if not all(os.path.exists(p) for p in (model_path, encoder_path, features_path)):
+    if not all(os.path.exists(p) for p in (model_path, encoder_path, features_path, importances_path)):
         print("[ml_predict] Model files not found — run `python -m backend.train_models` first.")
         return False
 
     try:
         import joblib
-        import shap
         _model           = joblib.load(model_path)
         _encoder         = joblib.load(encoder_path)
         _feature_columns = joblib.load(features_path)
-        _explainer       = shap.TreeExplainer(_model)
+        _importances     = joblib.load(importances_path)
         print(f"[ml_predict] XGBoost loan-type model loaded ({len(_feature_columns)} features, {len(_encoder.classes_)} classes)")
         return True
     except Exception as e:
@@ -94,21 +93,24 @@ def predict_loan_type_ml(customer: dict, fired_keys: set) -> dict:
     predicted_type = _encoder.inverse_transform([pred_idx])[0]
     confidence = float(probs[pred_idx])
 
-    # SHAP explanation for predicted class
+    # Pseudo-SHAP explanation using global feature importance and actual feature values
     try:
-        shap_values = _explainer.shap_values(df)
-        # For multi-class XGBoost: shap_values is a list of arrays [class0, class1, ...]
-        if isinstance(shap_values, list):
-            class_shap = shap_values[pred_idx][0]
-        else:
-            # Newer shap versions return 3D array: (samples, features, classes)
-            class_shap = shap_values[0, :, pred_idx]
-
+        # Get feature vector as list
+        feature_vals = df.iloc[0].tolist()
+        
+        # Calculate approximate contribution (importance * feature_val)
+        contributions = [imp * val for imp, val in zip(_importances, feature_vals)]
+        
+        # We also want to surface features that are absent but highly important as negative contributions
+        # but for simplicity, we just rank by absolute weighted contribution
         top_features = sorted(
-            zip(_feature_columns, class_shap), key=lambda x: abs(x[1]), reverse=True
+            zip(_feature_columns, contributions), key=lambda x: abs(x[1]), reverse=True
         )[:5]
-        shap_top = [{"feature": f, "shap_value": round(float(v), 4)} for f, v in top_features]
-    except Exception:
+        
+        # Format as expected by frontend
+        shap_top = [{"feature": f, "shap_value": round(float(v), 4)} for f, v in top_features if v != 0]
+    except Exception as e:
+        print(f"Explanation error: {e}")
         shap_top = []
 
     return {

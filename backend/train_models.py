@@ -115,6 +115,7 @@ def train_loan_type_model(db_path=None):
     joblib.dump(model,            os.path.join(MODELS_DIR, "loan_type_model.joblib"))
     joblib.dump(y_encoder,        os.path.join(MODELS_DIR, "loan_type_encoder.joblib"))
     joblib.dump(list(X.columns),  os.path.join(MODELS_DIR, "loan_type_features.joblib"))
+    joblib.dump(list(model.feature_importances_), os.path.join(MODELS_DIR, "loan_type_importances.joblib"))
 
     print(f"[train_models] Models saved to {MODELS_DIR}/")
     return accuracy

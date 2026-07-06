@@ -4,5 +4,10 @@ uvicorn[standard]==0.30.6
 numpy==1.26.4
 joblib==1.4.2
 httpx
+pandas==2.2.3
+scikit-learn==1.5.2
+xgboost==2.1.1
 
-
+# --- optional, local-dev only, NOT required for Vercel deploy ---
+# shap==0.46.0
+# sentence-transformers==3.1.1
