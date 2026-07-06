@@ -24,6 +24,7 @@ def connect(sqlite_path=None):
         psycopg, dict_row = _load_psycopg()
         return psycopg.connect(DATABASE_URL, row_factory=dict_row)
     conn = sqlite3.connect(sqlite_path or os.getenv("LENS_DB_PATH") or "lens.db")
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.row_factory = sqlite3.Row
     return conn
 

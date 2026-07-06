@@ -1,7 +1,7 @@
 import os
 import tempfile
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from fastapi.testclient import TestClient
 
 from backend import db, engine, governance
@@ -27,56 +27,15 @@ def setup_test_db(tmp_path):
     # Ensure foreign keys are enabled for SQLite
     conn.execute("PRAGMA foreign_keys = ON")
     
-    # Create tables
-    conn.execute("""
-    CREATE TABLE IF NOT EXISTS customers (
-        customer_id TEXT PRIMARY KEY,
-        name TEXT, age INTEGER, city TEXT, state TEXT,
-        employment_type TEXT, declared_income REAL,
-        true_monthly_income REAL, true_loan_type TEXT, persona TEXT
-    );
-    """)
-    conn.execute("""
-    CREATE TABLE IF NOT EXISTS transactions (
-        txn_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        customer_id TEXT, timestamp TEXT, type TEXT,
-        amount REAL, counterparty TEXT,
-        FOREIGN KEY(customer_id) REFERENCES customers(customer_id)
-    );
-    """)
-    conn.execute("""
-    CREATE TABLE IF NOT EXISTS leads (
-        customer_id TEXT PRIMARY KEY,
-        intent_score REAL, triggers_fired TEXT,
-        synthetic_income REAL, income_accuracy_pct REAL,
-        predicted_loan_type TEXT, match_correct INTEGER,
-        trust_score REAL, tier TEXT,
-        outreach_channel TEXT, outreach_window_start TEXT, outreach_window_end TEXT,
-        signal_detected_at TEXT, lead_card_generated_at TEXT, hours_to_lead REAL,
-        FOREIGN KEY(customer_id) REFERENCES customers(customer_id)
-    );
-    """)
-    conn.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        role TEXT NOT NULL CHECK(role IN ('admin', 'relationship_manager', 'analyst')),
-        password_salt TEXT NOT NULL,
-        password_hash TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        last_login_at TEXT
-    );
-    """)
-    conn.execute("""
-    CREATE TABLE IF NOT EXISTS sessions (
-        token TEXT PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        expires_at TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
-    );
-    """)
+    # Create tables using standard schema builders
+    from backend import data_gen
+    from backend.app import AUTH_SCHEMA
+    data_gen.create_schema(conn)
+    db.executescript(conn, AUTH_SCHEMA)
+    
+    # Initialize settings table with default lead threshold
+    conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('lead_threshold', '45')")
+    
     conn.commit()
     conn.close()
     
@@ -121,7 +80,7 @@ def add_transaction(customer_id, tx_type, amount, counterparty):
     db.execute(conn, """
     INSERT INTO transactions (customer_id, timestamp, type, amount, counterparty)
     VALUES (?, ?, ?, ?, ?)
-    """, (customer_id, datetime.now().isoformat(), tx_type, amount, counterparty))
+    """, (customer_id, datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f") + "+00:00", tx_type, amount, counterparty))
     conn.commit()
     conn.close()
 
@@ -365,7 +324,7 @@ def test_generate_compliance_report_structure():
     # DPDP and RBI items should exist
     assert "DPDP_Act_2023" in res["standards"]
     assert "RBI_Guidelines" in res["standards"]
-    assert res["standards"]["DPDP_Act_2023"]["status"] == "Attention Required"
+    assert res["standards"]["DPDP_Act_2023"]["status"] == "Compliant"
 
 def test_generate_compliance_report_db_stats():
     # Insert users to check if stats are incorporated
@@ -529,3 +488,116 @@ def test_api_roi_authenticated(client, auth_header):
     json_data = res.json()
     assert "total_customers" in json_data
     assert "roi_multiplier" in json_data
+
+
+def test_dpdp_consent_and_erasure(client, auth_header):
+    # Add a customer with enough transactions to be a lead
+    add_customer("C_consent", "Salaried", 100000.0, 100000.0)
+    add_transaction("C_consent", "SALARY_CREDIT", 100000.0, "Employer Payroll")
+    add_transaction("C_consent", "SALARY_CREDIT", 100000.0, "Employer Payroll")
+    add_transaction("C_consent", "NEFT", 80000.0, "Maruti Suzuki Arena")
+    add_transaction("C_consent", "IMPS", 200000.0, "External Beneficiary")
+    add_transaction("C_consent", "BILL_PAY", 50000.0, "DPS School Fees")
+    
+    # Assert customer exists
+    conn = db.connect()
+    assert db.scalar(conn, "SELECT COUNT(*) FROM customers WHERE customer_id = 'C_consent'") == 1
+    
+    # 1. Grant consent
+    res = client.post("/api/customers/C_consent/consent", json={"consent_type": "lending_outreach"}, headers=auth_header)
+    assert res.status_code == 200
+    assert res.json()["ok"] is True
+    
+    # Check log exists
+    assert db.scalar(conn, "SELECT COUNT(*) FROM consent_logs WHERE customer_id = 'C_consent'") == 1
+    
+    # Let's run engine so lead is generated
+    engine.run_engine()
+    assert db.scalar(conn, "SELECT COUNT(*) FROM leads WHERE customer_id = 'C_consent'") == 1
+    
+    # 2. Revoke consent (Right to Erasure)
+    res = client.delete("/api/customers/C_consent/consent", headers=auth_header)
+    assert res.status_code == 200
+    assert res.json()["ok"] is True
+    
+    # Check customer, leads, transactions, and consent logs are cascaded deleted
+    assert db.scalar(conn, "SELECT COUNT(*) FROM customers WHERE customer_id = 'C_consent'") == 0
+    assert db.scalar(conn, "SELECT COUNT(*) FROM transactions WHERE customer_id = 'C_consent'") == 0
+    assert db.scalar(conn, "SELECT COUNT(*) FROM leads WHERE customer_id = 'C_consent'") == 0
+    assert db.scalar(conn, "SELECT COUNT(*) FROM consent_logs WHERE customer_id = 'C_consent'") == 0
+    conn.close()
+
+
+def test_rm_access_logs(client, auth_header):
+    # Add customer and run engine to create a lead
+    add_customer("C_audit", "Salaried")
+    add_transaction("C_audit", "SALARY_CREDIT", 80000.0, "Employer Payroll")
+    add_transaction("C_audit", "SALARY_CREDIT", 80000.0, "Employer Payroll")
+    add_transaction("C_audit", "NEFT", 150000.0, "Tata Motors Showroom")
+    engine.run_engine()
+    
+    # View lead details as logged in user
+    res = client.get("/api/leads/C_audit", headers=auth_header)
+    assert res.status_code == 200
+    
+    # Retrieve access logs (admin only)
+    res_logs = client.get("/api/governance/access-logs", headers=auth_header)
+    assert res_logs.status_code == 200
+    logs = res_logs.json()
+    assert len(logs) > 0
+    latest_log = logs[0]
+    assert latest_log["customer_id"] == "C_audit"
+    assert latest_log["action"] == "VIEW_LEAD_DETAIL"
+    assert latest_log["user_email"] == "admin@test.com"
+
+
+def test_maker_checker_threshold(client, auth_header):
+    # Register proposer
+    reg_response = client.post("/api/auth/register", json={
+        "name": "RM Proposer",
+        "email": "rm_proposer@test.com",
+        "password": "securepassword123",
+        "role": "relationship_manager"
+    })
+    assert reg_response.status_code == 200
+    proposer_token = reg_response.json()["token"]
+    proposer_header = {"Authorization": f"Bearer {proposer_token}"}
+    
+    # 1. Propose threshold change
+    res = client.post("/api/governance/threshold-change-request", json={"proposed_threshold": 60.0}, headers=proposer_header)
+    assert res.status_code == 200
+    admin_req_id = res.json()["request_id"]
+    
+    # 2. Try to approve own request as the proposer (should fail)
+    # Let's register an admin proposer to test same-user checker validation
+    reg_response2 = client.post("/api/auth/register", json={
+        "name": "Admin Proposer",
+        "email": "admin_proposer@test.com",
+        "password": "securepassword123",
+        "role": "admin"
+    })
+    assert reg_response2.status_code == 200
+    admin_proposer_token = reg_response2.json()["token"]
+    admin_proposer_header = {"Authorization": f"Bearer {admin_proposer_token}"}
+    
+    res = client.post("/api/governance/threshold-change-request", json={"proposed_threshold": 70.0}, headers=admin_proposer_header)
+    assert res.status_code == 200
+    admin_req_id = res.json()["request_id"]
+    
+    # Approve as same admin (should throw 400 maker-checker error)
+    res_fail = client.post(f"/api/governance/threshold-change-request/{admin_req_id}/approve", headers=admin_proposer_header)
+    assert res_fail.status_code == 400
+    assert "Maker-Checker" in res_fail.json()["detail"]
+    
+    # 3. Approve as a DIFFERENT admin (auth_header)
+    res_approve = client.post(f"/api/governance/threshold-change-request/{admin_req_id}/approve", headers=auth_header)
+    assert res_approve.status_code == 200
+    assert res_approve.json()["status"] == "APPROVED"
+    assert res_approve.json()["new_threshold"] == 70.0
+    
+    # Verify settings table has the updated value
+    conn = db.connect()
+    val = db.scalar(conn, "SELECT value FROM settings WHERE key = 'lead_threshold'")
+    assert val == "70.0"
+    conn.close()
+

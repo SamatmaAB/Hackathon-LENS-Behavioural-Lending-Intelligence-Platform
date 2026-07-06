@@ -18,12 +18,21 @@ import tempfile
 import hashlib
 import hmac
 import logging
-from datetime import datetime, timedelta
+import threading
+from datetime import datetime, timedelta, UTC
 from typing import Optional, List, Dict, Any
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Header, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+def format_utc_datetime(dt: datetime) -> str:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    else:
+        dt = dt.astimezone(UTC)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.%f") + "+00:00"
 
 try:
     from backend import data_gen, db, engine, governance
@@ -37,6 +46,8 @@ DB_PATH = os.getenv("LENS_DB_PATH", DEFAULT_DB_PATH)
 SESSION_HOURS = 12
 ROLES = {"admin", "relationship_manager", "analyst"}
 WRITE_ROLES = {"admin", "relationship_manager"}
+is_generating = False
+generating_lock = threading.Lock()
 
 app = FastAPI(title="LENS — Behavioural Intelligence Engine", version="1.0.0")
 
@@ -103,12 +114,18 @@ def init_database():
         conn.execute("PRAGMA foreign_keys = ON")
     data_gen.create_schema(conn)
     db.executescript(conn, AUTH_SCHEMA_POSTGRES if db.IS_POSTGRES else AUTH_SCHEMA)
+    try:
+        exists = db.scalar(conn, "SELECT COUNT(*) FROM settings WHERE key = 'lead_threshold'")
+        if exists == 0:
+            db.execute(conn, "INSERT INTO settings (key, value) VALUES ('lead_threshold', '45')")
+    except Exception as e:
+        print(f"Failed to initialize default lead threshold: {e}")
     conn.commit()
     conn.close()
 
 
-@app.on_event("startup")
-def ensure_schema_and_data():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     db_already_exists = db_exists()
     init_database()
     if not db_already_exists:
@@ -117,7 +134,9 @@ def ensure_schema_and_data():
         conn.close()
         if customer_count == 0:
             data_gen.build_current_database(n_customers=150, seed=42, db_path=DB_PATH)
-            engine.run_engine(DB_PATH)
+    yield
+
+app.router.lifespan_context = lifespan
 
 
 def hash_password(password: str, salt: Optional[str] = None):
@@ -143,12 +162,12 @@ def public_user(row):
 
 def create_session(conn, user_id: int):
     token = secrets.token_urlsafe(32)
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     expires_at = now + timedelta(hours=SESSION_HOURS)
     db.execute(
         conn,
         "INSERT INTO sessions (token, user_id, expires_at, created_at) VALUES (?,?,?,?)",
-        (token, user_id, expires_at.isoformat(), now.isoformat()),
+        (token, user_id, format_utc_datetime(expires_at), format_utc_datetime(now)),
     )
     return token, expires_at
 
@@ -163,7 +182,7 @@ def require_user(authorization: str = Header(None)):
         """SELECT u.* FROM sessions s
            JOIN users u ON u.user_id = s.user_id
            WHERE s.token = ? AND s.expires_at > ?""",
-        (token, datetime.utcnow().isoformat()),
+        (token, format_utc_datetime(datetime.now(UTC))),
     )
     conn.close()
     if not row:
@@ -294,6 +313,25 @@ class ROIResponse(BaseModel):
     cost_assumptions: Dict[str, float]
 
 
+class ClassMetrics(BaseModel):
+    tp: int
+    fp: int
+    fn: int
+    precision: float
+    recall: float
+    f1_score: float
+
+class MacroAverages(BaseModel):
+    precision: float
+    recall: float
+    f1_score: float
+
+class EvaluationResponse(BaseModel):
+    confusion_matrix: Dict[str, Dict[str, int]]
+    class_metrics: Dict[str, ClassMetrics]
+    macro_averages: MacroAverages
+
+
 
 @app.post("/api/auth/register")
 def register(payload: RegisterRequest):
@@ -312,7 +350,7 @@ def register(payload: RegisterRequest):
         cursor = db.execute(
             conn,
             insert_sql,
-            (payload.name.strip(), email, role, salt, password_hash, datetime.utcnow().isoformat()),
+            (payload.name.strip(), email, role, salt, password_hash, format_utc_datetime(datetime.now(UTC))),
         )
         user_id = db.last_insert_id(cursor)
         token, expires_at = create_session(conn, user_id)
@@ -324,7 +362,7 @@ def register(payload: RegisterRequest):
             raise HTTPException(status.HTTP_409_CONFLICT, "Email is already registered")
         raise
     conn.close()
-    return {"token": token, "expires_at": expires_at.isoformat(), "user": public_user(user)}
+    return {"token": token, "expires_at": format_utc_datetime(expires_at), "user": public_user(user)}
 
 
 @app.post("/api/auth/login")
@@ -335,10 +373,10 @@ def login(payload: LoginRequest):
         conn.close()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
     token, expires_at = create_session(conn, user["user_id"])
-    db.execute(conn, "UPDATE users SET last_login_at=? WHERE user_id=?", (datetime.utcnow().isoformat(), user["user_id"]))
+    db.execute(conn, "UPDATE users SET last_login_at=? WHERE user_id=?", (format_utc_datetime(datetime.now(UTC)), user["user_id"]))
     conn.commit()
     conn.close()
-    return {"token": token, "expires_at": expires_at.isoformat(), "user": public_user(user)}
+    return {"token": token, "expires_at": format_utc_datetime(expires_at), "user": public_user(user)}
 
 
 @app.get("/api/auth/me")
@@ -364,12 +402,24 @@ def roles():
 
 
 @app.post("/api/generate")
-def generate(n_customers: int = Query(150, ge=20, le=1000), seed: int = Query(None), user=Depends(require_write_user)):
-    seed = seed if seed is not None else datetime.now().microsecond
-    n_cust, n_txn = data_gen.build_current_database(n_customers=n_customers, seed=seed, db_path=DB_PATH)
-    init_database()
-    summary = engine.run_engine(DB_PATH)
-    return {"customers_generated": n_cust, "transactions_generated": n_txn, **summary}
+def generate(n_customers: int = Query(150, ge=20, le=1000), seed: int = Query(None), noise_level: float = Query(0.20, ge=0.0, le=1.0), user=Depends(require_write_user)):
+    global is_generating
+    with generating_lock:
+        if is_generating:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Database generation is already in progress. Please wait."
+            )
+        is_generating = True
+    try:
+        seed = seed if seed is not None else datetime.now().microsecond
+        n_cust, n_txn = data_gen.build_current_database(n_customers=n_customers, seed=seed, db_path=DB_PATH, noise_level=noise_level)
+        init_database()
+        summary = engine.run_engine(DB_PATH)
+        return {"customers_generated": n_cust, "transactions_generated": n_txn, **summary}
+    finally:
+        with generating_lock:
+            is_generating = False
 
 
 @app.get("/api/stats")
@@ -461,11 +511,14 @@ def create_customer(payload: CustomerRequest, user=Depends(require_write_user)):
 
 @app.post("/api/transactions")
 def create_transaction(payload: TransactionRequest, user=Depends(require_write_user)):
-    timestamp = payload.timestamp or datetime.now().isoformat()
-    try:
-        datetime.fromisoformat(timestamp)
-    except ValueError:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "timestamp must be ISO-8601")
+    if payload.timestamp:
+        try:
+            dt = datetime.fromisoformat(payload.timestamp)
+            timestamp = format_utc_datetime(dt)
+        except ValueError:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "timestamp must be ISO-8601")
+    else:
+        timestamp = format_utc_datetime(datetime.now(UTC))
     conn = get_conn()
     exists = db.one(conn, "SELECT 1 FROM customers WHERE customer_id=?", (payload.customer_id,))
     if not exists:
@@ -524,6 +577,17 @@ def lead_detail(customer_id: str, user=Depends(require_user)):
         raise HTTPException(404, "Customer not found")
     cust = cust_row
 
+    # Record access log
+    try:
+        db.execute(
+            conn,
+            "INSERT INTO access_logs (user_id, customer_id, action, accessed_at) VALUES (?, ?, 'VIEW_LEAD_DETAIL', ?)",
+            (user["user_id"], customer_id, format_utc_datetime(datetime.now(UTC)))
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"Failed to record access log: {e}")
+
     lead_row = db.one(conn, "SELECT * FROM leads WHERE customer_id=?", (customer_id,))
     txns = db.rows(conn, "SELECT * FROM transactions WHERE customer_id=? ORDER BY timestamp DESC", (customer_id,))
     conn.close()
@@ -533,8 +597,14 @@ def lead_detail(customer_id: str, user=Depends(require_user)):
     if lead_row:
         lead = lead_row
         triggers = lead["triggers_fired"].split(",") if lead["triggers_fired"] else []
+        contribs = engine.get_trigger_contributions(triggers)
         lead["triggers_fired"] = [
-            {"code": t, "label": engine.TRIGGER_LABELS.get(t, t), "weight": engine.TRIGGER_WEIGHTS.get(t, 0)}
+            {
+                "code": t,
+                "label": engine.TRIGGER_LABELS.get(t, t),
+                "weight": engine.TRIGGER_WEIGHTS.get(t, 0),
+                "contribution": contribs.get(t, 0.0)
+            }
             for t in triggers
         ]
         result["lead"] = lead
@@ -616,3 +686,194 @@ def get_roi_report(user=Depends(require_user)):
         logger = logging.getLogger("lens.app")
         logger.error(f"Error in /api/governance/roi: {e}", exc_info=True)
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@app.get("/api/governance/evaluation", response_model=EvaluationResponse)
+def get_evaluation_report(user=Depends(require_user)):
+    """
+    Returns the multi-class confusion matrix, precision, recall, and f1 metrics.
+    """
+    try:
+        return governance.generate_evaluation_report(DB_PATH)
+    except Exception as e:
+        logger = logging.getLogger("lens.app")
+        logger.error(f"Error in /api/governance/evaluation: {e}", exc_info=True)
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+class ConsentPayload(BaseModel):
+    consent_type: str = "lending_outreach"
+
+
+class ThresholdChangePayload(BaseModel):
+    proposed_threshold: float = Field(..., ge=0.0, le=100.0)
+
+
+@app.post("/api/customers/{customer_id}/consent")
+def grant_consent(customer_id: str, payload: ConsentPayload, user=Depends(require_user)):
+    conn = get_conn()
+    cust = db.one(conn, "SELECT 1 FROM customers WHERE customer_id = ?", (customer_id,))
+    if not cust:
+        conn.close()
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Customer not found")
+    
+    now_str = format_utc_datetime(datetime.now(UTC))
+    try:
+        db.execute(
+            conn,
+            "INSERT INTO consent_logs (customer_id, user_id, consent_type, granted_at, revoked_at) VALUES (?, ?, ?, ?, NULL)",
+            (customer_id, user["user_id"], payload.consent_type, now_str)
+        )
+        conn.commit()
+    except Exception as exc:
+        conn.close()
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+    conn.close()
+    return {"ok": True, "status": "Consent recorded"}
+
+
+@app.delete("/api/customers/{customer_id}/consent")
+def revoke_consent_and_erase(customer_id: str, user=Depends(require_write_user)):
+    conn = get_conn()
+    cust = db.one(conn, "SELECT 1 FROM customers WHERE customer_id = ?", (customer_id,))
+    if not cust:
+        conn.close()
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Customer not found")
+    
+    now_str = format_utc_datetime(datetime.now(UTC))
+    try:
+        db.execute(
+            conn,
+            "UPDATE consent_logs SET revoked_at = ? WHERE customer_id = ? AND revoked_at IS NULL",
+            (now_str, customer_id)
+        )
+        db.execute(conn, "DELETE FROM customers WHERE customer_id = ?", (customer_id,))
+        conn.commit()
+    except Exception as exc:
+        conn.close()
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+    conn.close()
+    return {"ok": True, "status": "Erasure complete"}
+
+
+@app.get("/api/governance/access-logs")
+def list_access_logs(user=Depends(require_admin)):
+    conn = get_conn()
+    q = """
+        SELECT al.*, u.name AS user_name, u.email AS user_email, c.name AS customer_name
+        FROM access_logs al
+        LEFT JOIN users u ON al.user_id = u.user_id
+        LEFT JOIN customers c ON al.customer_id = c.customer_id
+        ORDER BY al.accessed_at DESC
+    """
+    rows = db.rows(conn, q)
+    conn.close()
+    return rows
+
+
+@app.post("/api/governance/threshold-change-request")
+def propose_threshold_change(payload: ThresholdChangePayload, user=Depends(require_write_user)):
+    conn = get_conn()
+    insert_sql = """
+        INSERT INTO threshold_requests (proposer_id, proposed_threshold, status, approved_by, created_at, updated_at)
+        VALUES (?, ?, 'PENDING', NULL, ?, ?)
+    """
+    if db.IS_POSTGRES:
+        insert_sql += " RETURNING request_id AS id"
+    now_str = format_utc_datetime(datetime.now(UTC))
+    try:
+        cursor = db.execute(conn, insert_sql, (user["user_id"], payload.proposed_threshold, now_str, now_str))
+        request_id = db.last_insert_id(cursor)
+        conn.commit()
+    except Exception as exc:
+        conn.close()
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+    conn.close()
+    return {"ok": True, "request_id": request_id, "status": "PENDING"}
+
+
+@app.get("/api/governance/threshold-change-requests")
+def list_threshold_change_requests(user=Depends(require_user)):
+    conn = get_conn()
+    q = """
+        SELECT tr.*, u.name AS proposer_name, u.email AS proposer_email,
+               a.name AS approver_name, a.email AS approver_email
+        FROM threshold_requests tr
+        LEFT JOIN users u ON tr.proposer_id = u.user_id
+        LEFT JOIN users a ON tr.approved_by = a.user_id
+        ORDER BY tr.created_at DESC
+    """
+    rows = db.rows(conn, q)
+    conn.close()
+    return rows
+
+
+@app.post("/api/governance/threshold-change-request/{request_id}/approve")
+def approve_threshold_change(request_id: int, user=Depends(require_admin)):
+    conn = get_conn()
+    req = db.one(conn, "SELECT * FROM threshold_requests WHERE request_id = ?", (request_id,))
+    if not req:
+        conn.close()
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Threshold request not found")
+        
+    if req["status"] != "PENDING":
+        conn.close()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Request is already {req['status']}")
+        
+    if req["proposer_id"] == user["user_id"]:
+        conn.close()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Maker-Checker segregation: Proposer cannot approve their own request")
+        
+    now_str = format_utc_datetime(datetime.now(UTC))
+    proposed_threshold = req["proposed_threshold"]
+    
+    try:
+        db.execute(
+            conn,
+            "UPDATE threshold_requests SET status = 'APPROVED', approved_by = ?, updated_at = ? WHERE request_id = ?",
+            (user["user_id"], now_str, request_id)
+        )
+        exists = db.scalar(conn, "SELECT COUNT(*) FROM settings WHERE key = 'lead_threshold'")
+        if exists > 0:
+            db.execute(conn, "UPDATE settings SET value = ? WHERE key = 'lead_threshold'", (str(proposed_threshold),))
+        else:
+            db.execute(conn, "INSERT INTO settings (key, value) VALUES ('lead_threshold', ?)", (str(proposed_threshold),))
+        conn.commit()
+    except Exception as exc:
+        conn.close()
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+    conn.close()
+    
+    try:
+        engine.run_engine(DB_PATH)
+    except Exception as e:
+        print(f"Error running engine after threshold approval: {e}")
+        
+    return {"ok": True, "status": "APPROVED", "new_threshold": proposed_threshold}
+
+
+@app.post("/api/governance/threshold-change-request/{request_id}/reject")
+def reject_threshold_change(request_id: int, user=Depends(require_admin)):
+    conn = get_conn()
+    req = db.one(conn, "SELECT * FROM threshold_requests WHERE request_id = ?", (request_id,))
+    if not req:
+        conn.close()
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Threshold request not found")
+        
+    if req["status"] != "PENDING":
+        conn.close()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Request is already {req['status']}")
+        
+    now_str = format_utc_datetime(datetime.now(UTC))
+    try:
+        db.execute(
+            conn,
+            "UPDATE threshold_requests SET status = 'REJECTED', approved_by = ?, updated_at = ? WHERE request_id = ?",
+            (user["user_id"], now_str, request_id)
+        )
+        conn.commit()
+    except Exception as exc:
+        conn.close()
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+    conn.close()
+    return {"ok": True, "status": "REJECTED"}

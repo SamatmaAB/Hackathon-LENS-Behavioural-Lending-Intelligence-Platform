@@ -532,6 +532,7 @@ const IconUser = (p) => <svg {...p} width="20" height="20" viewBox="0 0 24 24" f
 const IconRefresh = (p) => <svg {...p} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>;
 const IconSearch = (p) => <svg {...p} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
 const IconEmpty = (p) => <svg {...p} width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="2 12 7 12 9 18 14 6 16 12 22 12"/></svg>;
+const IconShield = (p) => <svg {...p} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
 
 /* ---------- KPI strip ---------- */
 function KPIStrip({stats}) {
@@ -670,7 +671,7 @@ function DetailPanel({customerId, token, onUnauthorized}) {
             <div className="trigger-bar-track">
               <div className="trigger-bar-fill" style={{width: `${Math.max(8, Math.abs(t.weight)/maxTriggerW*100)}%`, background: t.weight < 0 ? 'var(--red)' : undefined}}></div>
             </div>
-            <div className="w">{t.weight > 0 ? '+' : ''}{t.weight}</div>
+            <div className="w" style={{whiteSpace: 'nowrap'}}>{t.weight > 0 ? '+' : ''}{t.weight} {t.contribution > 0 ? `(${t.contribution}%)` : ''}</div>
           </div>
         ))}
       </div>
@@ -729,6 +730,424 @@ function DetailPanel({customerId, token, onUnauthorized}) {
   );
 }
 
+
+/* ---------- Governance Dashboard Component ---------- */
+function GovernanceDashboard({token, onUnauthorized}) {
+  const [subTab, setSubTab] = useState('evaluation'); // 'evaluation', 'fairness', 'compliance', 'sandbox', 'roi'
+  const [evalData, setEvalData] = useState(null);
+  const [fairnessData, setFairnessData] = useState(null);
+  const [complianceData, setComplianceData] = useState(null);
+  const [sandboxData, setSandboxData] = useState(null);
+  const [roiData, setRoiData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchSubData = useCallback((tab) => {
+    if (!token) return;
+    setLoading(true); setError(null);
+    let endpoint = '';
+    if (tab === 'evaluation') endpoint = '/api/governance/evaluation';
+    else if (tab === 'fairness') endpoint = '/api/governance/fairness';
+    else if (tab === 'compliance') endpoint = '/api/governance/compliance';
+    else if (tab === 'sandbox') endpoint = '/api/governance/sandbox-mapping';
+    else if (tab === 'roi') endpoint = '/api/governance/roi';
+
+    fetch(`${API_BASE}${endpoint}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => {
+        if (r.status === 401) { onUnauthorized(); throw new Error('Session expired'); }
+        if (!r.ok) throw new Error('Failed to load governance report');
+        return r.json();
+      })
+      .then(data => {
+        if (tab === 'evaluation') setEvalData(data);
+        else if (tab === 'fairness') setFairnessData(data);
+        else if (tab === 'compliance') setComplianceData(data);
+        else if (tab === 'sandbox') setSandboxData(data);
+        else if (tab === 'roi') setRoiData(data);
+        setLoading(false);
+      })
+      .catch(e => {
+        setError(e.message);
+        setLoading(false);
+      });
+  }, [token, onUnauthorized]);
+
+  useEffect(() => {
+    fetchSubData(subTab);
+  }, [subTab, fetchSubData]);
+
+  const renderContent = () => {
+    if (loading) return <div style={{padding: 50, textAlign: 'center'}}><div className="spinner" style={{margin: '0 auto'}}></div></div>;
+    if (error) return <div className="error-banner">{error}</div>;
+
+    if (subTab === 'evaluation' && evalData) {
+      const {confusion_matrix, class_metrics, macro_averages} = evalData;
+      const classes = ["None", "Home Loan", "Auto Loan", "Personal Loan", "Mortgage"];
+      return (
+        <div>
+          <h3>Model Classification Self-Evaluation</h3>
+          <p style={{fontSize: 13, color: 'var(--text-mid)', marginBottom: 20}}>
+            Calculated dynamically across all database customers. Real-world behavioral signals carry inherent ambiguity, leading to class deviations which are tracked here in real-time.
+          </p>
+          
+          <div className="metric-grid" style={{marginBottom: 28}}>
+            <div className="metric-card">
+              <div className="l">Macro Precision</div>
+              <div className="v">{macro_averages.precision}%</div>
+              <div className="d">Avg positive predictive value</div>
+            </div>
+            <div className="metric-card">
+              <div className="l">Macro Recall</div>
+              <div className="v">{macro_averages.recall}%</div>
+              <div className="d">Avg sensitivity across classes</div>
+            </div>
+            <div className="metric-card">
+              <div className="l">Macro F1-Score</div>
+              <div className="v">{macro_averages.f1_score}%</div>
+              <div className="d">Harmonic mean of precision/recall</div>
+            </div>
+          </div>
+
+          <div style={{display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, alignItems: 'start'}}>
+            <div>
+              <h4 style={{margin: '0 0 12px'}}>Confusion Matrix</h4>
+              <div style={{overflowX: 'auto', background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 16}}>
+                <table style={{width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: 13}}>
+                  <thead>
+                    <tr>
+                      <th style={{padding: '8px 4px', borderBottom: '1px solid var(--border)', color: 'var(--text-low)', fontSize: 11, textAlign: 'left'}}>Actual \ Pred</th>
+                      {classes.map(c => <th key={c} style={{padding: '8px 4px', borderBottom: '1px solid var(--border)', fontWeight: 600}}>{c}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {classes.map(actual => (
+                      <tr key={actual}>
+                        <td style={{padding: '10px 4px', borderBottom: '1px solid var(--border-soft)', fontWeight: 600, color: 'var(--text-mid)', textAlign: 'left'}}>{actual}</td>
+                        {classes.map(pred => {
+                          const val = confusion_matrix[actual]?.[pred] || 0;
+                          const isDiagonal = actual === pred;
+                          return (
+                            <td key={pred} style={{
+                              padding: '10px 4px', 
+                              borderBottom: '1px solid var(--border-soft)',
+                              fontFamily: 'var(--font-mono)',
+                              background: isDiagonal && val > 0 ? 'rgba(22, 194, 174, 0.08)' : undefined,
+                              color: isDiagonal && val > 0 ? 'var(--teal)' : 'var(--text-hi)'
+                            }}>
+                              {val}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <div>
+              <h4 style={{margin: '0 0 12px'}}>Class Metrics Breakdown</h4>
+              <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
+                {classes.map(c => {
+                  const m = class_metrics[c] || {precision: 0, recall: 0, f1_score: 0, tp: 0, fp: 0, fn: 0};
+                  return (
+                    <div key={c} style={{background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 10, padding: '12px 16px'}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6}}>
+                        <b style={{fontSize: 13, color: 'var(--text-hi)'}}>{c}</b>
+                        <span style={{fontSize: 11, color: 'var(--text-low)'}}>TP: {m.tp} | FP: {m.fp} | FN: {m.fn}</span>
+                      </div>
+                      <div style={{display: 'flex', gap: 16, fontSize: 12}}>
+                        <div><span style={{color: 'var(--text-low)'}}>Precision:</span> <b style={{color: 'var(--text-hi)'}}>{m.precision}%</b></div>
+                        <div><span style={{color: 'var(--text-low)'}}>Recall:</span> <b style={{color: 'var(--text-hi)'}}>{m.recall}%</b></div>
+                        <div><span style={{color: 'var(--text-low)'}}>F1:</span> <b style={{color: 'var(--text-hi)'}}>{m.f1_score}%</b></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (subTab === 'fairness' && fairnessData) {
+      const {segments, best_performing_segment, best_conversion_rate_pct, flagged_segments, recommendation_summary} = fairnessData;
+      return (
+        <div>
+          <h3>Dynamic Fairness & Bias Audit</h3>
+          <p style={{fontSize: 13, color: 'var(--text-mid)', marginBottom: 20}}>
+            Monitors lending conversion rates across demographics. If any segment underperforms the best segment by <b>20 percentage points or more</b>, it triggers an algorithmic warning.
+          </p>
+
+          <div style={{display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, alignItems: 'start'}}>
+            <div>
+              <h4 style={{margin: '0 0 12px'}}>Segment Conversion Rates</h4>
+              <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
+                {segments.map(seg => {
+                  const isBest = seg.segment_name === best_performing_segment;
+                  return (
+                    <div key={seg.segment_name} style={{background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 10, padding: 14}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13}}>
+                        <b>{seg.segment_name}</b>
+                        <span>
+                          {seg.total_leads} / {seg.total_customers} leads ({seg.conversion_rate_pct}%)
+                        </span>
+                      </div>
+                      <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                        <div style={{flex: 1, height: 8, background: 'var(--surface-3)', borderRadius: 4, overflow: 'hidden'}}>
+                          <div style={{
+                            width: `${seg.conversion_rate_pct}%`,
+                            height: '100%',
+                            background: seg.is_underperforming ? 'var(--red)' : 'var(--teal)'
+                          }}></div>
+                        </div>
+                        <span style={{fontSize: 11, fontFamily: 'var(--font-mono)', color: seg.is_underperforming ? 'var(--red)' : 'var(--text-mid)'}}>
+                          {isBest ? 'BEST' : `-${seg.gap_to_best_pp}pp`}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <h4 style={{margin: '0 0 12px'}}>Fairness Gaps & Interventions</h4>
+              <div style={{background: flagged_segments.length ? 'rgba(229,72,77,0.06)' : 'rgba(22,194,174,0.06)', border: `1px solid ${flagged_segments.length ? 'rgba(229,72,77,0.3)' : 'rgba(22,194,174,0.3)'}`, borderRadius: 12, padding: 18}}>
+                <div style={{fontWeight: 600, fontSize: 14, color: flagged_segments.length ? '#F2A0A2' : 'var(--teal)', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12}}>
+                  <span style={{width: 8, height: 8, borderRadius: '50%', background: flagged_segments.length ? 'var(--red)' : 'var(--teal)'}}></span>
+                  {flagged_segments.length ? 'Bias Alert Triggered' : 'Fairness Standard Met'}
+                </div>
+                <p style={{fontSize: 12.5, lineHeight: 1.5, margin: '0 0 14px', color: 'var(--text-hi)'}}>
+                  {recommendation_summary}
+                </p>
+                {flagged_segments.map((f, i) => (
+                  <div key={i} style={{fontSize: 12, borderTop: '1px solid var(--border-soft)', paddingTop: 10, marginTop: 10, color: 'var(--text-mid)'}}>
+                    <b>{f.segment_name} Recommendation:</b><br/>{f.recommendation}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (subTab === 'compliance' && complianceData) {
+      const {compliance_status, standards, overall_summary, recommendations, gaps} = complianceData;
+      return (
+        <div>
+          <h3>Regulatory Compliance Matrix</h3>
+          <p style={{fontSize: 13, color: 'var(--text-mid)', marginBottom: 20}}>
+            Audits LENS against statutory frameworks: India's Digital Personal Data Protection (DPDP) Act 2023 and RBI Digital Lending Guidelines.
+          </p>
+
+          <div style={{display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, alignItems: 'start'}}>
+            <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
+              {Object.entries(standards).map(([key, std]) => {
+                const isCompliant = std.status === 'Compliant';
+                return (
+                  <div key={key} style={{background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: 18}}>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8}}>
+                      <h4 style={{margin: 0, fontSize: 14, fontFamily: 'var(--font-display)'}}>{key.replace(/_/g, ' ')}</h4>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        background: isCompliant ? 'rgba(22,194,174,0.12)' : 'rgba(242,135,12,0.12)',
+                        color: isCompliant ? 'var(--teal)' : 'var(--amber)'
+                      }}>{std.status.toUpperCase()}</span>
+                    </div>
+                    <p style={{fontSize: 12, color: 'var(--text-low)', margin: '0 0 10px'}}>{std.description} — {std.considerations}</p>
+                    {std.gaps.length > 0 && (
+                      <div style={{fontSize: 12, marginTop: 10}}>
+                        <b style={{color: 'var(--red)'}}>Detected Gaps:</b>
+                        <ul style={{margin: '4px 0 10px', paddingLeft: 20, color: 'var(--text-mid)'}}>
+                          {std.gaps.map((g, idx) => <li key={idx} style={{marginBottom: 3}}>{g}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    <div style={{fontSize: 12}}>
+                      <b style={{color: 'var(--teal)'}}>Compliance Action:</b>
+                      <ul style={{margin: '4px 0 0', paddingLeft: 20, color: 'var(--text-mid)'}}>
+                        {std.recommendations.map((r, idx) => <li key={idx} style={{marginBottom: 3}}>{r}</li>)}
+                      </ul>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div>
+              <h4 style={{margin: '0 0 12px'}}>Audit Summary</h4>
+              <div style={{background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 12, padding: 18}}>
+                <div style={{fontSize: 14, fontWeight: 600, color: compliance_status === 'Compliant' ? 'var(--teal)' : 'var(--amber)', marginBottom: 8}}>
+                  Status: {compliance_status}
+                </div>
+                <p style={{fontSize: 13, lineHeight: 1.5, color: 'var(--text-mid)', margin: '0 0 14px'}}>
+                  {overall_summary}
+                </p>
+                <div style={{fontSize: 12, borderTop: '1px solid var(--border-soft)', paddingTop: 12}}>
+                  <b>System Gaps ({gaps.length})</b>
+                  <ol style={{margin: '6px 0 0', paddingLeft: 18, color: 'var(--text-low)', lineHeight: 1.4}}>
+                    {gaps.map((g, i) => <li key={i} style={{marginBottom: 6}}>{g}</li>)}
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (subTab === 'sandbox' && sandboxData) {
+      const {schema_version, validation_notes, mappings, missing_mappings} = sandboxData;
+      return (
+        <div>
+          <h3>Sandbox API Schema Mapping</h3>
+          <p style={{fontSize: 13, color: 'var(--text-mid)', marginBottom: 20}}>
+            Schema mappings and data transformations matching standard core banking / aggregator API schemas. Schema Version: <b>{schema_version}</b>.
+          </p>
+
+          <table className="txn-table" style={{width: '100%'}}>
+            <thead>
+              <tr>
+                <th style={{padding: '10px 12px'}}>Internal Field</th>
+                <th style={{padding: '10px 12px'}}>Sandbox Field</th>
+                <th style={{padding: '10px 12px'}}>Transformation</th>
+                <th style={{padding: '10px 12px'}}>Validation Rules</th>
+                <th style={{padding: '10px 12px', textAlign: 'right'}}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mappings.map((m, idx) => (
+                <tr key={idx}>
+                  <td style={{fontFamily: 'var(--font-mono)', fontSize: 12}}>{m.internal_field}</td>
+                  <td style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--teal)'}}>{m.sandbox_field}</td>
+                  <td>{m.transformation}</td>
+                  <td style={{fontSize: 11.5, color: 'var(--text-low)'}}>{m.validation_rules}</td>
+                  <td style={{textAlign: 'right'}}><span className="txn-type-tag" style={{background: 'rgba(22,194,174,0.1)', color: 'var(--teal)'}}>{m.status}</span></td>
+                </tr>
+              ))}
+              {missing_mappings.map((m, idx) => (
+                <tr key={idx} style={{opacity: 0.6}}>
+                  <td style={{fontFamily: 'var(--font-mono)', fontSize: 12}}>{m.internal_field}</td>
+                  <td style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-low)'}}>{m.sandbox_field}</td>
+                  <td style={{color: 'var(--text-low)'}}>Excluded</td>
+                  <td style={{fontSize: 11.5, color: 'var(--text-low)'}}>{m.reason}</td>
+                  <td style={{textAlign: 'right'}}><span className="txn-type-tag" style={{background: 'var(--surface-3)', color: 'var(--text-low)'}}>skipped</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{marginTop: 18, fontSize: 12, color: 'var(--text-low)'}}>
+            <b>Validation Notes:</b> {validation_notes}
+          </div>
+        </div>
+      );
+    }
+
+    if (subTab === 'roi' && roiData) {
+      const {total_customers, total_leads, conversion_rate_pct, estimated_revenue, estimated_cost, net_profit, roi_multiplier, segment_performance, cost_assumptions} = roiData;
+      return (
+        <div>
+          <h3>Dynamic Business ROI Optimization</h3>
+          <p style={{fontSize: 13, color: 'var(--text-mid)', marginBottom: 20}}>
+            Financial projections based on current scans. Assess computation costs vs expected loan interest margins.
+          </p>
+
+          <div className="metric-grid" style={{marginBottom: 24}}>
+            <div className="metric-card">
+              <div className="l">Total Cost</div>
+              <div className="v">{fmtINR(estimated_cost)}</div>
+              <div className="d">Compute + outreach cost</div>
+            </div>
+            <div className="metric-card">
+              <div className="l">Expected Revenue</div>
+              <div className="v">{fmtINR(estimated_revenue)}</div>
+              <div className="d">Yield from projected disbursals</div>
+            </div>
+            <div className="metric-card" style={{borderColor: 'var(--teal-dim)'}}>
+              <div className="l">Expected Net Profit / ROI</div>
+              <div className="v" style={{color: 'var(--teal)'}}>{fmtINR(net_profit)} <span style={{fontSize: 12, color: 'var(--text-low)', fontWeight: 500}}>({roi_multiplier}x)</span></div>
+              <div className="d">Projections on current database</div>
+            </div>
+          </div>
+
+          <h4 style={{margin: '0 0 10px'}}>ROI Breakdown by Customer Segment</h4>
+          <table className="txn-table" style={{width: '100%'}}>
+            <thead>
+              <tr>
+                <th style={{padding: '10px 12px'}}>Segment</th>
+                <th style={{padding: '10px 12px', textAlign: 'center'}}>Customers</th>
+                <th style={{padding: '10px 12px', textAlign: 'center'}}>Leads</th>
+                <th style={{padding: '10px 12px', textAlign: 'center'}}>Outreach Cost</th>
+                <th style={{padding: '10px 12px', textAlign: 'center'}}>Projected Revenue</th>
+                <th style={{padding: '10px 12px', textAlign: 'right'}}>Projected ROI</th>
+              </tr>
+            </thead>
+            <tbody>
+              {segment_performance.map((s, idx) => (
+                <tr key={idx}>
+                  <td><b>{s.segment_name}</b></td>
+                  <td style={{textAlign: 'center'}}>{s.total_customers}</td>
+                  <td style={{textAlign: 'center'}}>{s.total_leads} ({s.conversion_rate_pct}%)</td>
+                  <td style={{textAlign: 'center', fontFamily: 'var(--font-mono)'}}>{fmtINR(s.estimated_outreach_cost)}</td>
+                  <td style={{textAlign: 'center', fontFamily: 'var(--font-mono)', color: 'var(--teal)'}}>{fmtINR(s.expected_revenue)}</td>
+                  <td style={{textAlign: 'right', fontWeight: 600, color: s.roi_pct > 0 ? 'var(--teal)' : 'var(--text-hi)'}}>{s.roi_pct}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{marginTop: 18, background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 10, padding: 12, fontSize: 11.5, color: 'var(--text-low)', display: 'flex', gap: 20}}>
+            <div><b>Assumptions:</b></div>
+            <div>Scoring Cost: {fmtINR(cost_assumptions.cost_per_assessment)}/cust</div>
+            <div>Outreach Cost: {fmtINR(cost_assumptions.cost_per_outreach)}/lead</div>
+            <div>Closing Probability: {cost_assumptions.expected_conversion_rate * 100}%</div>
+            <div>Average Loan: {fmtINR(cost_assumptions.average_loan_amount)}</div>
+            <div>Net Profit Yield: {cost_assumptions.net_yield_margin * 100}%</div>
+          </div>
+        </div>
+      );
+    }
+  };
+
+  return (
+    <div style={{padding: '24px 32px'}}>
+      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-soft)', paddingBottom: 16, marginBottom: 20}}>
+        <div>
+          <h2 style={{fontFamily: 'var(--font-display)', fontSize: 22, margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 10}}>
+            <IconShield style={{color: 'var(--teal)'}} /> Algorithmic Governance & Analytics
+          </h2>
+          <div style={{fontSize: 12.5, color: 'var(--text-mid)'}}>Compliance, model self-evaluation metrics, fairness analysis, and ROI optimizer</div>
+        </div>
+      </div>
+
+      <div style={{display: 'flex', gap: 6, marginBottom: 20}}>
+        {[
+          {id: 'evaluation', label: 'Model Evaluation'},
+          {id: 'fairness', label: 'Fairness Audit'},
+          {id: 'compliance', label: 'DPDP / RBI Compliance'},
+          {id: 'sandbox', label: 'Sandbox Schema'},
+          {id: 'roi', label: 'Business ROI'}
+        ].map(t => (
+          <div key={t.id} className={`chip ${subTab === t.id ? 'active' : ''}`} onClick={() => setSubTab(t.id)}>
+            {t.label}
+          </div>
+        ))}
+      </div>
+
+      <div style={{background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 16, padding: '24px 28px', minHeight: 400}}>
+        {renderContent()}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- App ---------- */
 function App() {
   const [auth, setAuth] = useState(() => {
@@ -749,6 +1168,8 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [connError, setConnError] = useState(null);
+  const [regenError, setRegenError] = useState(null);
+  const [activeTab, setActiveTab] = useState('leads'); // 'leads' or 'governance'
 
   const [usersRegistered, setUsersRegistered] = useState(0);
   const [authMode, setAuthMode] = useState('login'); 
@@ -854,6 +1275,7 @@ function App() {
   const handleUnauthorized = useCallback(() => {
     setAuth(null);
     localStorage.removeItem(storageKey);
+    setAuthError("Session expired — please log in again");
   }, []);
 
   const checkUsers = useCallback(() => {
@@ -958,16 +1380,29 @@ function App() {
   const handleRegenerate = () => {
     if (!auth) return;
     setGenerating(true);
+    setRegenError(null);
     fetch(`${API_BASE}/api/generate?n_customers=150`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${auth.token}` }
     })
-      .then(r => {
+      .then(async r => {
         if (r.status === 401) { handleUnauthorized(); throw new Error('unauthorized'); }
+        if (r.status === 409) {
+          const data = await r.json();
+          const detail = data.detail || "Database generation is already in progress. Please wait.";
+          setRegenError(detail);
+          throw new Error(detail);
+        }
+        if (!r.ok) throw new Error('Generation failed');
         return r.json();
       })
       .then(() => { setGenerating(false); setSelected(null); loadAll(); })
-      .catch(() => setGenerating(false));
+      .catch((err) => {
+        setGenerating(false);
+        if (err.message !== 'unauthorized') {
+          console.error(err);
+        }
+      });
   };
 
   const filtered = useMemo(() => {
@@ -1091,8 +1526,8 @@ function App() {
     <div className="app">
       <div className="sidebar">
         <div className="brand-mark"><IconPulse style={{color:'var(--teal)'}} /></div>
-        <div className="nav-icon active"><IconList/></div>
-        <div className="nav-icon"><IconUser/></div>
+        <div className={`nav-icon ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')} title="Leads Console"><IconList/></div>
+        <div className={`nav-icon ${activeTab === 'governance' ? 'active' : ''}`} onClick={() => setActiveTab('governance')} title="Governance & Audit"><IconShield/></div>
         <div className="sidebar-spacer"></div>
         {auth && (
           <div className="nav-icon" onClick={handleLogout} title="Sign Out" style={{color: 'var(--red)', marginBottom: 12}}>
@@ -1141,40 +1576,52 @@ function App() {
           </div>
         </div>
 
+        {regenError && (
+          <div className="error-banner" style={{margin: '18px 32px 0 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+            <span>{regenError}</span>
+            <button style={{background:'transparent', border:'none', color:'inherit', cursor:'pointer', fontSize:16}} onClick={() => setRegenError(null)}>&times;</button>
+          </div>
+        )}
+
         <KPIStrip stats={stats} />
 
-        <div className="body-grid">
-          <div className="queue">
-            <div className="queue-controls">
-              <div className="search-box">
-                <IconSearch style={{color:'var(--text-low)'}}/>
-                <input placeholder="Search by name or customer ID…" value={search} onChange={e=>setSearch(e.target.value)} />
+        {activeTab === 'leads' ? (
+          <div className="body-grid">
+            <div className="queue">
+              <div className="queue-controls">
+                <div className="search-box">
+                  <IconSearch style={{color:'var(--text-low)'}}/>
+                  <input placeholder="Search by name or customer ID…" value={search} onChange={e=>setSearch(e.target.value)} />
+                </div>
+                <div className="filter-row">
+                  {['All','Tier 1','Tier 2','Tier 3'].map(t => (
+                    <div key={t} className={`chip ${tierFilter===t?'active':''}`} onClick={()=>setTierFilter(t)}>{t}</div>
+                  ))}
+                  <select value={sort} onChange={e=>setSort(e.target.value)}
+                    style={{marginLeft:'auto', background:'var(--surface-2)', color:'var(--text-mid)', border:'1px solid var(--border)', borderRadius:8, fontSize:12, padding:'6px 8px'}}>
+                    <option value="trust_score">Sort: Trust Score</option>
+                    <option value="intent_score">Sort: Intent Score</option>
+                    <option value="hours_to_lead">Sort: Time to Lead</option>
+                  </select>
+                </div>
               </div>
-              <div className="filter-row">
-                {['All','Tier 1','Tier 2','Tier 3'].map(t => (
-                  <div key={t} className={`chip ${tierFilter===t?'active':''}`} onClick={()=>setTierFilter(t)}>{t}</div>
-                ))}
-                <select value={sort} onChange={e=>setSort(e.target.value)}
-                  style={{marginLeft:'auto', background:'var(--surface-2)', color:'var(--text-mid)', border:'1px solid var(--border)', borderRadius:8, fontSize:12, padding:'6px 8px'}}>
-                  <option value="trust_score">Sort: Trust Score</option>
-                  <option value="intent_score">Sort: Intent Score</option>
-                  <option value="hours_to_lead">Sort: Time to Lead</option>
-                </select>
+              <div className="queue-list">
+                {loading ? <div style={{padding:30, textAlign:'center'}}><div className="spinner" style={{margin:'0 auto'}}></div></div> :
+                  leads.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads yet — click Generate Dataset to populate the console</div> :
+                  filtered.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads match this filter.</div> :
+                  filtered.map(l => (
+                    <LeadCard key={l.customer_id} lead={l} selected={selected===l.customer_id} onClick={()=>setSelected(l.customer_id)} />
+                  ))
+                }
               </div>
             </div>
-            <div className="queue-list">
-              {loading ? <div style={{padding:30, textAlign:'center'}}><div className="spinner" style={{margin:'0 auto'}}></div></div> :
-                filtered.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads match this filter.</div> :
-                filtered.map(l => (
-                  <LeadCard key={l.customer_id} lead={l} selected={selected===l.customer_id} onClick={()=>setSelected(l.customer_id)} />
-                ))
-              }
+            <div className="detail">
+              <DetailPanel customerId={selected} token={auth?.token} onUnauthorized={handleUnauthorized} />
             </div>
           </div>
-          <div className="detail">
-            <DetailPanel customerId={selected} token={auth?.token} onUnauthorized={handleUnauthorized} />
-          </div>
-        </div>
+        ) : (
+          <GovernanceDashboard token={auth?.token} onUnauthorized={handleUnauthorized} />
+        )}
       </div>
 
       {/* ---------- Create Customer Modal ---------- */}

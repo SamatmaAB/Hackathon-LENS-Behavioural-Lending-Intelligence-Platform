@@ -164,6 +164,19 @@ def compute_intent_score(fired_keys):
     return max(0, min(100, round(raw * 1.35)))
 
 
+def get_trigger_contributions(fired_keys):
+    positive_weights = {k: TRIGGER_WEIGHTS.get(k, 0) for k in fired_keys if TRIGGER_WEIGHTS.get(k, 0) > 0}
+    total_positive = sum(positive_weights.values())
+    contributions = {}
+    for k in fired_keys:
+        w = TRIGGER_WEIGHTS.get(k, 0)
+        if w > 0 and total_positive > 0:
+            contributions[k] = round((w / total_positive) * 100, 1)
+        else:
+            contributions[k] = 0.0
+    return contributions
+
+
 def reconstruct_income(customer, txns):
     """CLARITY: cluster credit transactions by counterparty (source
     regularity) and project a Synthetic Monthly Income for non-salaried
@@ -272,6 +285,30 @@ LEAD_THRESHOLD = 45  # Intent Score required to enter the lead pipeline (calibra
                       # so conversion lands near the prototype's benchmarked ~31%)
 
 
+def get_lead_threshold(conn=None, db_path=None):
+    """Retrieve lead threshold from settings table, falling back to LEAD_THRESHOLD."""
+    close_conn = False
+    if conn is None:
+        try:
+            conn = db.connect(db_path)
+            close_conn = True
+        except Exception:
+            return LEAD_THRESHOLD
+    try:
+        val = db.scalar(conn, "SELECT value FROM settings WHERE key = 'lead_threshold'")
+        if val is not None:
+            return float(val)
+    except Exception:
+        pass
+    finally:
+        if close_conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    return LEAD_THRESHOLD
+
+
 def score_customer(customer, txns=None, conn=None, db_path=None):
     """Scores a single customer independently, returning their intent score, triggers, income,
     loan type, outreach, and trust score, regardless of whether they clear the lead threshold."""
@@ -290,7 +327,8 @@ def score_customer(customer, txns=None, conn=None, db_path=None):
     fired = _detect_triggers(txns)
     fired_keys = list(fired.keys())
     intent_score = compute_intent_score(fired_keys)
-    is_lead = intent_score >= LEAD_THRESHOLD
+    threshold = get_lead_threshold(conn=conn, db_path=db_path)
+    is_lead = intent_score >= threshold
 
     income_record = reconstruct_income(customer, txns)
     predicted_loan, match_conf = predict_loan_type(fired_keys, customer["customer_id"])

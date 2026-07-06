@@ -11,7 +11,14 @@ synthetic (standing in for the bank's real transaction warehouse).
 
 import random
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
+
+def format_utc_datetime(dt: datetime) -> str:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    else:
+        dt = dt.astimezone(UTC)
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.%f") + "+00:00"
 
 try:
     from backend import db
@@ -256,13 +263,13 @@ def _gen_transactions(employment_type, persona, base_income):
         })
 
     for t in txns:
-        t["timestamp"] = (datetime.now() - timedelta(days=t.pop("days_back"))).isoformat()
+        t["timestamp"] = format_utc_datetime(datetime.now(UTC) - timedelta(days=t.pop("days_back")))
 
     txns.sort(key=lambda x: x["timestamp"])
     return txns
 
 
-def generate_dataset(n_customers=150, seed=None):
+def generate_dataset(n_customers=150, seed=None, noise_level: float = 0.20):
     if seed is not None:
         random.seed(seed)
 
@@ -284,6 +291,30 @@ def generate_dataset(n_customers=150, seed=None):
 
         declared_income = round(base_income, 2) if employment_type == "Salaried" else None
 
+        # Check if noise should be injected for this customer
+        inject_noise = random.random() < noise_level
+        
+        if inject_noise:
+            # 1. Mismatch the label: choose a different loan type
+            original_loan = persona["true_loan_type"]
+            alt_loans = [l for l in ("None", "Personal Loan", "Auto Loan", "Home Loan", "Mortgage") if l != original_loan]
+            true_loan_type = random.choice(alt_loans)
+            
+            # 2. Conflicting triggers: merge triggers from another random persona
+            other_persona = random.choice([p for p in PERSONAS if p["name"] != persona["name"]])
+            noise_triggers = random.sample(other_persona["triggers"], k=min(2, len(other_persona["triggers"])))
+            
+            merged_triggers = list(set(persona["triggers"]) | set(noise_triggers))
+            temp_persona = {
+                "name": persona["name"],
+                "employment_bias": persona["employment_bias"],
+                "true_loan_type": true_loan_type,
+                "triggers": merged_triggers
+            }
+        else:
+            true_loan_type = persona["true_loan_type"]
+            temp_persona = persona
+
         customers.append({
             "customer_id": cust_id,
             "name": f"{first} {last}",
@@ -293,11 +324,11 @@ def generate_dataset(n_customers=150, seed=None):
             "employment_type": employment_type,
             "declared_income": declared_income,
             "true_monthly_income": round(base_income, 2),
-            "true_loan_type": persona["true_loan_type"],
+            "true_loan_type": true_loan_type,
             "persona": persona["name"],
         })
 
-        for t in _gen_transactions(employment_type, persona, base_income):
+        for t in _gen_transactions(employment_type, temp_persona, base_income):
             t["customer_id"] = cust_id
             transactions.append(t)
 
@@ -315,7 +346,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     txn_id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_id TEXT, timestamp TEXT, type TEXT,
     amount REAL, counterparty TEXT,
-    FOREIGN KEY(customer_id) REFERENCES customers(customer_id)
+    FOREIGN KEY(customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS leads (
     customer_id TEXT PRIMARY KEY,
@@ -325,7 +356,35 @@ CREATE TABLE IF NOT EXISTS leads (
     trust_score REAL, tier TEXT,
     outreach_channel TEXT, outreach_window_start TEXT, outreach_window_end TEXT,
     signal_detected_at TEXT, lead_card_generated_at TEXT, hours_to_lead REAL,
-    FOREIGN KEY(customer_id) REFERENCES customers(customer_id)
+    FOREIGN KEY(customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS consent_logs (
+    customer_id TEXT,
+    user_id INTEGER,
+    consent_type TEXT,
+    granted_at TEXT,
+    revoked_at TEXT,
+    FOREIGN KEY(customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS access_logs (
+    log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    customer_id TEXT,
+    action TEXT,
+    accessed_at TEXT
+);
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+CREATE TABLE IF NOT EXISTS threshold_requests (
+    request_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    proposer_id INTEGER,
+    proposed_threshold REAL,
+    status TEXT,
+    approved_by INTEGER,
+    created_at TEXT,
+    updated_at TEXT
 );
 """
 
@@ -351,6 +410,34 @@ CREATE TABLE IF NOT EXISTS leads (
     outreach_channel TEXT, outreach_window_start TEXT, outreach_window_end TEXT,
     signal_detected_at TEXT, lead_card_generated_at TEXT, hours_to_lead DOUBLE PRECISION,
     FOREIGN KEY(customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS consent_logs (
+    customer_id TEXT,
+    user_id INTEGER,
+    consent_type TEXT,
+    granted_at TEXT,
+    revoked_at TEXT,
+    FOREIGN KEY(customer_id) REFERENCES customers(customer_id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS access_logs (
+    log_id SERIAL PRIMARY KEY,
+    user_id INTEGER,
+    customer_id TEXT,
+    action TEXT,
+    accessed_at TEXT
+);
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);
+CREATE TABLE IF NOT EXISTS threshold_requests (
+    request_id SERIAL PRIMARY KEY,
+    proposer_id INTEGER,
+    proposed_threshold DOUBLE PRECISION,
+    status TEXT,
+    approved_by INTEGER,
+    created_at TEXT,
+    updated_at TEXT
 );
 """
 
@@ -391,24 +478,24 @@ def insert_dataset(conn, customers, transactions):
     )
 
 
-def build_current_database(n_customers=150, seed=42, db_path=None):
+def build_current_database(n_customers=150, seed=42, db_path=None, noise_level: float = 0.20):
     conn = db.connect(db_path)
     create_schema(conn)
     clear_customer_data(conn)
-    customers, transactions = generate_dataset(n_customers, seed=seed)
+    customers, transactions = generate_dataset(n_customers, seed=seed, noise_level=noise_level)
     insert_dataset(conn, customers, transactions)
     conn.commit()
     conn.close()
     return len(customers), len(transactions)
 
 
-def build_database(db_path, n_customers=150, seed=42):
+def build_database(db_path, n_customers=150, seed=42, noise_level: float = 0.20):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.executescript("DROP TABLE IF EXISTS leads; DROP TABLE IF EXISTS transactions; DROP TABLE IF EXISTS customers;")
     cur.executescript(SCHEMA)
 
-    customers, transactions = generate_dataset(n_customers, seed=seed)
+    customers, transactions = generate_dataset(n_customers, seed=seed, noise_level=noise_level)
 
     cur.executemany(
         """INSERT INTO customers (customer_id, name, age, city, state, employment_type,
@@ -428,5 +515,5 @@ def build_database(db_path, n_customers=150, seed=42):
 
 
 if __name__ == "__main__":
-    n_cust, n_txn = build_database("lens.db", n_customers=150, seed=42)
+    n_cust, n_txn = build_database("lens.db", n_customers=150, seed=42, noise_level=0.20)
     print(f"Generated {n_cust} customers and {n_txn} transactions -> lens.db")

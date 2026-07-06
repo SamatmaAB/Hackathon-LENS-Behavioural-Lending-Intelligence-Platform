@@ -32,8 +32,8 @@ lens/
 | **MOMENT** | Computes the 72-hour outreach window and recommends a channel (App Notification / RM Call / Branch Visit) based on age, employment type and trigger profile | `engine.py::determine_outreach` |
 | **TRUST SCORE** | Combines Intent (40%) + Income confidence (30%) + Repayment-behaviour indicators (30%) into Tier 1 / 2 / 3 | `engine.py::compute_trust_score` |
 
-On a fresh 150-customer run this lands close to the deck's benchmark numbers
-(~30% conversion, ~3–7h time-to-lead, ~90% loan-type match) because it's
+On a fresh 150-customer run with 20% dataset noise, this lands close to:
+(~42% conversion, ~3–4h time-to-lead, ~66.7% loan-type match) because it's
 calibrated against the same kind of behavioural patterns — but the numbers
 are recomputed every time you regenerate the dataset, not hardcoded.
 
