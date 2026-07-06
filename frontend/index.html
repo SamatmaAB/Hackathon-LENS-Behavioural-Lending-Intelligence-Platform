@@ -1475,6 +1475,9 @@ function CompareLeadsWorkspace({ leads, token, onUnauthorized }) {
       ) : (
         <div style={{ color: 'var(--text-low)', fontStyle: 'italic', textAlign: 'center', padding: 40 }}>Please select two valid leads to begin.</div>
       )}
+    </div>
+  );
+}
 function Toast({msg, type, onDone}) {
   useEffect(() => {
     const t = setTimeout(onDone, 3000);
@@ -2844,7 +2847,6 @@ function App() {
 
         {activeTab === 'admin' && isAdmin && (
           <AdminPanel token={auth.token} onUnauthorized={handleUnauthorized} showToast={showToast} />
-        )}
         )}
       </div>
 
