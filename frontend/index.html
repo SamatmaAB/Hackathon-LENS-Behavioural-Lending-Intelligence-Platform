@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>LENS — RM Lead Console</title>
-<meta name="theme-color" content="#f5f5f7">
+<title>LENS — Behavioural Lending Intelligence Platform</title>
+<meta name="description" content="LENS — AI-powered behavioural lending intelligence for relationship managers. Real-time lead scoring, income reconstruction, and explainable AI signals." />
+<meta name="theme-color" content="#070B14">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -23,6 +24,7 @@
   --amber:#F2870C;
   --amber-dim:#9C5B0A;
   --red:#E5484D;
+  --green:#22C55E;
   --text-hi:#EDF2F9;
   --text-mid:#A9B5CB;
   --text-low:#5C6B87;
@@ -51,17 +53,24 @@ body{
 /* ---------- Sidebar ---------- */
 .sidebar{
   background:var(--surface);border-right:1px solid var(--border-soft);
-  display:flex;flex-direction:column;align-items:center;padding:20px 0;gap:28px;
+  display:flex;flex-direction:column;align-items:center;padding:20px 0;gap:4px;
+  position:sticky;top:0;height:100vh;
 }
-.brand-mark{width:36px;height:36px;display:flex;align-items:center;justify-content:center;}
+.brand-mark{width:36px;height:36px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;}
 .nav-icon{
   width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;
-  color:var(--text-low);cursor:pointer;transition:all .15s ease;
+  color:var(--text-low);cursor:pointer;transition:all .15s ease;position:relative;
 }
 .nav-icon.active{background:rgba(22,194,174,0.12);color:var(--teal);}
-.nav-icon:hover{color:var(--text-hi);}
+.nav-icon:hover:not(.active){color:var(--text-hi);background:rgba(255,255,255,0.04);}
+.nav-tooltip{
+  position:absolute;left:calc(100% + 10px);background:var(--surface-2);border:1px solid var(--border);
+  border-radius:7px;padding:5px 10px;font-size:11px;font-weight:600;color:var(--text-hi);
+  white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;z-index:100;
+}
+.nav-icon:hover .nav-tooltip{opacity:1;}
 .sidebar-spacer{flex:1;}
-.sidebar-foot{color:var(--text-low);font-size:10px;writing-mode:vertical-rl;letter-spacing:1px;}
+.sidebar-foot{color:var(--text-low);font-size:10px;writing-mode:vertical-rl;letter-spacing:1px;margin-bottom:8px;}
 
 /* ---------- Main ---------- */
 .main{display:flex;flex-direction:column;min-height:100vh;overflow:hidden;}
@@ -76,17 +85,19 @@ body{
   display:flex;align-items:center;gap:10px;letter-spacing:.2px;
 }
 .topbar .sub{color:var(--text-mid);font-size:13px;margin-top:3px;}
-.topbar-actions{display:flex;align-items:center;gap:10px;}
+.topbar-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 
 .btn{
   font-family:var(--font-body);font-weight:600;font-size:13px;border:1px solid var(--border);
   background:var(--surface-2);color:var(--text-hi);padding:9px 16px;border-radius:9px;
-  cursor:pointer;transition:all .15s ease;display:flex;align-items:center;gap:7px;
+  cursor:pointer;transition:all .15s ease;display:inline-flex;align-items:center;gap:7px;
 }
 .btn:hover{border-color:var(--teal-dim);background:var(--surface-3);}
 .btn.primary{background:linear-gradient(135deg,var(--teal),var(--teal-dim));border:none;color:#04141F;}
 .btn.primary:hover{filter:brightness(1.08);}
-.btn:disabled{opacity:.5;cursor:not-allowed;}
+.btn.danger{border-color:rgba(229,72,77,0.4);color:var(--red);}
+.btn.danger:hover{background:rgba(229,72,77,0.1);border-color:var(--red);}
+.btn:disabled{opacity:.5;cursor:not-allowed;pointer-events:none;}
 
 /* ---------- KPI strip ---------- */
 .kpi-strip{
@@ -219,6 +230,7 @@ body{
   padding:8px 12px;border-bottom:1px solid var(--border-soft);font-weight:600;
 }
 .txn-table td{padding:9px 12px;font-size:12.5px;border-bottom:1px solid var(--border-soft);color:var(--text-mid);}
+.txn-table tr:last-child td{border-bottom:none;}
 .txn-table tr:hover td{background:var(--surface);}
 .txn-table .amt{font-family:var(--font-mono);color:var(--text-hi);}
 .txn-type-tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:var(--surface-3);color:var(--text-mid);}
@@ -238,15 +250,67 @@ body{
 }
 .error-banner code{background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px;font-family:var(--font-mono);}
 
-@media (max-width:900px){
-  .app{grid-template-columns:1fr;}
-  .sidebar{display:none;}
-  .body-grid{grid-template-columns:1fr;}
-  .queue{border-right:none;border-bottom:1px solid var(--border-soft);max-height:48vh;}
-  .kpi-strip{grid-template-columns:repeat(2,1fr);}
-  .metric-grid{grid-template-columns:1fr;}
-  .income-panel{grid-template-columns:1fr;}
+/* ---------- Tabs ---------- */
+.tab-bar{
+  display:flex;border-bottom:1px solid var(--border-soft);padding:0 32px;gap:0;
 }
+.tab-btn{
+  font-family:var(--font-body);font-size:13px;font-weight:600;padding:14px 20px;
+  background:transparent;border:none;color:var(--text-low);cursor:pointer;
+  border-bottom:2px solid transparent;transition:all .15s;margin-bottom:-1px;
+}
+.tab-btn.active{color:var(--teal);border-bottom-color:var(--teal);}
+.tab-btn:hover:not(.active){color:var(--text-mid);}
+
+/* ---------- Governance panels ---------- */
+.gov-section{padding:28px 36px 60px;}
+.gov-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px;}
+.gov-card{
+  background:var(--surface);border:1px solid var(--border-soft);border-radius:12px;padding:20px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.gov-card .gc-label{font-size:11px;color:var(--text-low);text-transform:uppercase;letter-spacing:.6px;font-weight:600;}
+.gov-card .gc-value{font-family:var(--font-display);font-size:28px;font-weight:700;}
+.gov-card .gc-sub{font-size:12px;color:var(--text-mid);line-height:1.4;}
+.status-pill{
+  display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;
+  padding:3px 9px;border-radius:20px;letter-spacing:.3px;
+}
+.status-pill.compliant{background:rgba(22,197,94,0.12);color:var(--green);}
+.status-pill.review{background:rgba(242,135,12,0.12);color:var(--amber);}
+.status-pill.flag{background:rgba(229,72,77,0.12);color:var(--red);}
+
+.segment-table{width:100%;border-collapse:collapse;margin-top:8px;}
+.segment-table th{
+  text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-low);
+  padding:8px 12px;border-bottom:1px solid var(--border-soft);font-weight:600;
+}
+.segment-table td{padding:10px 12px;font-size:13px;border-bottom:1px solid var(--border-soft);color:var(--text-mid);}
+.segment-table tr:last-child td{border-bottom:none;}
+
+/* ---------- Admin panel ---------- */
+.admin-section{padding:28px 36px 60px;}
+.admin-grid{display:grid;gap:16px;margin-top:16px;}
+.admin-user-card{
+  background:var(--surface);border:1px solid var(--border-soft);border-radius:12px;
+  padding:16px 20px;display:flex;align-items:center;gap:16px;
+}
+.admin-user-avatar{
+  width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-display);font-weight:700;font-size:15px;flex-shrink:0;
+}
+.admin-user-avatar.role-admin{background:rgba(242,135,12,0.15);color:var(--amber);}
+.admin-user-avatar.role-rm{background:rgba(22,194,174,0.15);color:var(--teal);}
+.admin-user-avatar.role-analyst{background:rgba(92,107,135,0.2);color:#8C9AB5;}
+.admin-user-info{flex:1;}
+.admin-user-name{font-weight:600;font-size:14px;}
+.admin-user-meta{font-size:12px;color:var(--text-low);font-family:var(--font-mono);margin-top:2px;}
+.role-tag{
+  font-size:10px;font-weight:700;padding:3px 9px;border-radius:6px;letter-spacing:.3px;
+}
+.role-tag.admin{background:rgba(242,135,12,0.16);color:var(--amber);}
+.role-tag.relationship_manager{background:rgba(22,194,174,0.16);color:var(--teal);}
+.role-tag.analyst{background:rgba(92,107,135,0.2);color:#8C9AB5;}
 
 /* ---------- Auth UI ---------- */
 .auth-container {
@@ -265,25 +329,34 @@ body{
   border: 1px solid var(--border);
   border-radius: 16px;
   width: 100%;
-  max-width: 400px;
-  padding: 36px 32px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  max-width: 420px;
+  padding: 40px 36px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  animation: scaleIn 0.2s ease-out;
 }
-.auth-title {
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--text-hi);
-  margin-bottom: 8px;
+.auth-logo {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-bottom: 6px;
+}
+.auth-logo-mark {
+  width: 38px;height: 38px;border-radius: 10px;
+  background: linear-gradient(135deg, var(--teal), var(--teal-dim));
+  display: flex;align-items: center;justify-content: center;
+}
+.auth-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-hi);
+  margin: 0;
 }
 .auth-subtitle {
   font-size: 13px;
   color: var(--text-mid);
-  margin-bottom: 24px;
-  line-height: 1.4;
+  margin: 8px 0 28px;
+  line-height: 1.5;
 }
 .auth-field {
   display: flex;
@@ -293,35 +366,37 @@ body{
 }
 .auth-field label {
   font-size: 10.5px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.7px;
   color: var(--text-low);
 }
 .auth-input {
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 14px;
+  border-radius: 9px;
+  padding: 11px 14px;
   color: var(--text-hi);
   font-family: var(--font-body);
   font-size: 14px;
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
   width: 100%;
 }
 .auth-input:focus {
   border-color: var(--teal);
   outline: none;
+  box-shadow: 0 0 0 3px rgba(22,194,174,0.12);
 }
 .auth-select {
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 14px;
+  border-radius: 9px;
+  padding: 11px 14px;
   color: var(--text-hi);
   font-family: var(--font-body);
   font-size: 14px;
   width: 100%;
+  transition: border-color 0.15s ease;
 }
 .auth-select:focus {
   border-color: var(--teal);
@@ -330,99 +405,96 @@ body{
 .auth-error {
   background: rgba(229,72,77,0.08);
   border: 1px solid rgba(229,72,77,0.35);
-  border-radius: 8px;
+  border-radius: 9px;
   color: #F2A0A2;
   font-size: 12.5px;
-  padding: 10px 14px;
+  padding: 11px 14px;
   margin-bottom: 18px;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 .auth-switch {
   text-align: center;
   font-size: 13px;
   color: var(--text-mid);
-  margin-top: 20px;
+  margin-top: 22px;
 }
 .auth-switch span {
   color: var(--teal);
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 600;
 }
-.auth-switch span:hover {
-  text-decoration: underline;
+.auth-switch span:hover {text-decoration: underline;}
+
+/* ---------- Divider ---------- */
+.auth-divider{
+  display:flex;align-items:center;gap:12px;margin:20px 0;
 }
+.auth-divider::before,.auth-divider::after{
+  content:'';flex:1;height:1px;background:var(--border-soft);
+}
+.auth-divider span{font-size:11px;color:var(--text-low);}
 
 /* ---------- Modal Dialogs ---------- */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(4, 7, 14, 0.7);
-  backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  top: 0;left: 0;right: 0;bottom: 0;
+  background: rgba(4, 7, 14, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;align-items: center;justify-content: center;
   z-index: 1000;
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.15s ease-out;
 }
 .modal-content {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
   width: 100%;
-  max-width: 500px;
+  max-width: 520px;
   padding: 30px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
-  animation: scaleIn 0.2s ease-out;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  animation: scaleIn 0.15s ease-out;
 }
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes scaleIn {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
+@keyframes fadeIn {from{opacity:0;}to{opacity:1;}}
+@keyframes scaleIn {from{transform:scale(0.96);opacity:0;}to{transform:scale(1);opacity:1;}}
+
 .modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 22px;
+  display: flex;justify-content: space-between;align-items: center;margin-bottom: 24px;
 }
 .modal-header h3 {
-  font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
-  color: var(--text-hi);
+  font-family: var(--font-display);font-size: 20px;font-weight: 600;margin: 0;color: var(--text-hi);
 }
 .modal-close {
-  background: transparent;
-  border: none;
-  color: var(--text-low);
-  font-size: 22px;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
+  background: transparent;border: none;color: var(--text-low);font-size: 22px;
+  cursor: pointer;padding: 0;line-height: 1;transition: color .15s;
 }
-.modal-close:hover {
-  color: var(--text-hi);
+.modal-close:hover {color: var(--text-hi);}
+.form-grid {display: grid;grid-template-columns: 1fr 1fr;gap: 16px;}
+.form-full {grid-column: span 2;}
+.form-actions {display: flex;justify-content: flex-end;gap: 12px;margin-top: 24px;}
+
+/* ---------- Toast notification ---------- */
+.toast{
+  position:fixed;bottom:24px;right:24px;z-index:2000;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
+  padding:12px 18px;font-size:13px;font-weight:500;color:var(--text-hi);
+  box-shadow:0 8px 24px rgba(0,0,0,0.4);animation:slideUp .2s ease-out;
+  display:flex;align-items:center;gap:10px;
 }
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-.form-full {
-  grid-column: span 2;
-}
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
+.toast.success{border-color:rgba(22,197,94,0.4);}
+.toast.error{border-color:rgba(229,72,77,0.4);color:#F2A0A2;}
+@keyframes slideUp{from{transform:translateY(12px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+
+@media (max-width:900px){
+  .app{grid-template-columns:1fr;}
+  .sidebar{display:none;}
+  .body-grid{grid-template-columns:1fr;}
+  .queue{border-right:none;border-bottom:1px solid var(--border-soft);max-height:48vh;}
+  .kpi-strip{grid-template-columns:repeat(2,1fr);}
+  .metric-grid{grid-template-columns:1fr;}
+  .income-panel{grid-template-columns:1fr;}
+  .gov-grid{grid-template-columns:1fr;}
+  .tab-bar{padding:0 16px;}
+  .gov-section,.admin-section{padding:20px 16px 60px;}
 }
 </style>
 <link rel="stylesheet" href="apple_theme.css">
@@ -431,20 +503,25 @@ body{
 <div id="root"></div>
 
 <script type="text/babel" data-presets="react">
-const {useState, useEffect, useMemo, useCallback} = React;
+const {useState, useEffect, useMemo, useCallback, useRef} = React;
 
+<<<<<<< Updated upstream
 const API_BASE = (() => {
   const params = new URLSearchParams(window.location.search);
   if (params.get('api')) return params.get('api');
-  if (window.location.port === '5500') return 'http://localhost:8000';
+  if (window.location.port === '5500' || window.location.port === '5501') return 'http://localhost:8000';
   return window.location.origin;
 })();
+const storageKey = 'lens_auth_v2';
+=======
+const API_BASE = new URLSearchParams(window.location.search).get('api') || window.location.origin;
 const storageKey = 'lens_auth';
 const emptyCustomer = {
   customer_id:'', name:'', age:32, city:'', state:'', employment_type:'Salaried',
   declared_income:'', true_monthly_income:'', true_loan_type:'None', persona:'manual'
 };
 const emptyTxn = {customer_id:'', type:'SALARY_CREDIT', amount:'', counterparty:'Employer Payroll', timestamp:''};
+>>>>>>> Stashed changes
 
 const TIER_COLORS = {'Tier 1': 'var(--tier1)', 'Tier 2': 'var(--tier2)', 'Tier 3': 'var(--tier3)'};
 
@@ -470,9 +547,24 @@ function fmtWindowEnd(iso) {
   return 'closes in ' + Math.max(1, Math.round(diffH)) + 'h';
 }
 
-/* ---------- Pulse waveform SVG (the signature element) ---------- */
+/* ---------- Toast ---------- */
+function Toast({msg, type, onDone}) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 3000);
+    return () => clearTimeout(t);
+  }, [onDone]);
+  const icon = type === 'success' ? '✓' : '✕';
+  const color = type === 'success' ? 'var(--green)' : 'var(--red)';
+  return (
+    <div className={`toast ${type}`}>
+      <span style={{color, fontWeight:700}}>{icon}</span>
+      {msg}
+    </div>
+  );
+}
+
+/* ---------- Pulse waveform SVG ---------- */
 function PulseLine({intensity = 50, color = 'var(--teal)', width = 200, height = 26, animate = true, id}) {
-  // Generates an ECG-style waveform whose spike height scales with `intensity`
   const w = width, h = height, mid = h / 2;
   const segs = 6;
   const segW = w / segs;
@@ -525,13 +617,16 @@ function ScoreRing({value, label, size = 92, color = 'var(--teal)'}) {
   );
 }
 
-/* ---------- Icons (inline, no external icon dependency) ---------- */
+/* ---------- Icons ---------- */
 const IconPulse = (p) => <svg {...p} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="2 12 7 12 9 18 14 6 16 12 22 12"/></svg>;
 const IconList = (p) => <svg {...p} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>;
 const IconUser = (p) => <svg {...p} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
 const IconRefresh = (p) => <svg {...p} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>;
 const IconSearch = (p) => <svg {...p} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
 const IconEmpty = (p) => <svg {...p} width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="2 12 7 12 9 18 14 6 16 12 22 12"/></svg>;
+const IconShield = (p) => <svg {...p} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
+const IconAdmin = (p) => <svg {...p} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>;
+const IconLogout = (p) => <svg {...p} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
 
 /* ---------- KPI strip ---------- */
 function KPIStrip({stats}) {
@@ -540,8 +635,8 @@ function KPIStrip({stats}) {
   const bench = stats.industry_benchmark;
   const items = [
     {label: 'Active Leads', value: stats.total_leads, bench: `from ${stats.total_customers} customers scanned`},
-    {label: 'Conversion Rate', value: conv + '%', bench: <>vs <b>{bench.lead_conversion_rate_pct}%</b> industry avg</>},
-    {label: 'Avg. Time to Lead', value: stats.avg_hours_to_lead + 'h', bench: <>vs <b>{bench.time_to_lead_hours}h</b> batch cycle</>},
+    {label: 'Conversion Rate', value: conv + '%', bench: <><b>{bench.lead_conversion_rate_pct}%</b> industry avg</>},
+    {label: 'Avg. Time to Lead', value: stats.avg_hours_to_lead + 'h', bench: <><b>{bench.time_to_lead_hours}h</b> batch cycle</>},
     {label: 'Income Accuracy', value: '±' + stats.avg_income_deviation_pct + '%', bench: 'non-salaried, vs actual'},
     {label: 'Loan-Type Match', value: stats.loan_type_accuracy_pct + '%', bench: 'predicted vs realized'},
   ];
@@ -597,10 +692,10 @@ function DetailPanel({customerId, token, onUnauthorized}) {
     fetch(`${API_BASE}/api/leads/${customerId}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-      .then(r => { 
+      .then(r => {
         if (r.status === 401) { onUnauthorized(); throw new Error('Session expired'); }
-        if (!r.ok) throw new Error('Failed to load lead'); 
-        return r.json(); 
+        if (!r.ok) throw new Error('Failed to load lead');
+        return r.json();
       })
       .then(d => { setData(d); setLoading(false); })
       .catch(e => { setErr(e.message); setLoading(false); });
@@ -715,10 +810,10 @@ function DetailPanel({customerId, token, onUnauthorized}) {
           <tr><th>Date</th><th>Type</th><th>Counterparty</th><th style={{textAlign:'right'}}>Amount</th></tr>
         </thead>
         <tbody>
-          {transactions.slice(0, 18).map(t => (
+          {transactions.slice(0, 20).map(t => (
             <tr key={t.txn_id}>
-              <td>{new Date(t.timestamp).toLocaleDateString('en-IN', {day:'2-digit', month:'short'})}</td>
-              <td><span className="txn-type-tag">{t.type.replace('_',' ')}</span></td>
+              <td>{new Date(t.timestamp).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'2-digit'})}</td>
+              <td><span className="txn-type-tag">{t.type.replace(/_/g,' ')}</span></td>
               <td>{t.counterparty}</td>
               <td className="amt" style={{textAlign:'right'}}>{fmtINR(t.amount)}</td>
             </tr>
@@ -729,17 +824,365 @@ function DetailPanel({customerId, token, onUnauthorized}) {
   );
 }
 
+/* ---------- Governance Panel ---------- */
+function GovernancePanel({token, onUnauthorized}) {
+  const [tab, setTab] = useState('fairness');
+  const [data, setData] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  const endpoints = {
+    fairness: '/api/governance/fairness',
+    compliance: '/api/governance/compliance',
+    roi: '/api/governance/roi',
+  };
+
+  useEffect(() => {
+    if (data[tab]) return;
+    setLoading(true);
+    fetch(`${API_BASE}${endpoints[tab]}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => {
+        if (r.status === 401) { onUnauthorized(); throw new Error('unauthorized'); }
+        if (!r.ok) throw new Error('Failed to load');
+        return r.json();
+      })
+      .then(d => { setData(prev => ({...prev, [tab]: d})); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [tab, token]);
+
+  const d = data[tab];
+
+  return (
+    <div className="gov-section">
+      <div style={{display:'flex', gap:8, marginBottom:24, flexWrap:'wrap'}}>
+        {[['fairness','Fairness Audit'],['compliance','Compliance'],['roi','ROI Analysis']].map(([k,label]) => (
+          <button key={k} className={`btn ${tab===k?'primary':''}`} onClick={() => setTab(k)}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {loading && <div style={{display:'flex',justifyContent:'center',padding:60}}><div className="spinner"></div></div>}
+
+      {!loading && tab === 'fairness' && d && (
+        <>
+          <div className="section-title"><span className="dot"></span>Segment Conversion Fairness</div>
+          <div className="gov-grid">
+            {d.segments.map(s => (
+              <div key={s.segment_name} className="gov-card">
+                <div className="gc-label">{s.segment_name}</div>
+                <div className="gc-value" style={{color: s.is_underperforming ? 'var(--red)' : 'var(--teal)'}}>{s.conversion_rate_pct.toFixed(1)}%</div>
+                <div className="gc-sub">{s.total_leads} leads / {s.total_customers} customers</div>
+                {s.is_underperforming && (
+                  <span className="status-pill flag">⚠ Underperforming by {s.gap_to_best_pp.toFixed(1)}pp</span>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="section-title" style={{marginTop:32}}><span className="dot"></span>Recommendations</div>
+          <div style={{background:'var(--surface)',border:'1px solid var(--border-soft)',borderRadius:12,padding:20,fontSize:13.5,lineHeight:1.7,color:'var(--text-mid)'}}>
+            {d.recommendation_summary}
+          </div>
+        </>
+      )}
+
+      {!loading && tab === 'compliance' && d && (
+        <>
+          <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:24}}>
+            <span className={`status-pill ${d.compliance_status === 'COMPLIANT' ? 'compliant' : 'review'}`}>
+              {d.compliance_status === 'COMPLIANT' ? '✓' : '◌'} {d.compliance_status}
+            </span>
+            <span style={{fontSize:13,color:'var(--text-mid)'}}>{d.overall_summary}</span>
+          </div>
+          <div className="gov-grid">
+            {Object.entries(d.standards).map(([key, std]) => (
+              <div key={key} className="gov-card">
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+                  <div className="gc-label">{key.replace(/_/g,' ')}</div>
+                  <span className={`status-pill ${std.status === 'COMPLIANT' ? 'compliant' : std.status === 'PARTIAL' ? 'review' : 'flag'}`}>
+                    {std.status}
+                  </span>
+                </div>
+                <div className="gc-sub">{std.description}</div>
+                {std.gaps.length > 0 && (
+                  <div style={{fontSize:11.5,color:'var(--red)',marginTop:4}}>
+                    {std.gaps.slice(0,2).map((g,i) => <div key={i}>• {g}</div>)}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="section-title" style={{marginTop:32}}><span className="dot"></span>Governance Notes</div>
+          <div style={{background:'var(--surface)',border:'1px solid var(--border-soft)',borderRadius:12,padding:20,fontSize:13.5,lineHeight:1.7,color:'var(--text-mid)'}}>
+            {d.governance_notes}
+          </div>
+        </>
+      )}
+
+      {!loading && tab === 'roi' && d && (
+        <>
+          <div className="gov-grid" style={{marginBottom:32}}>
+            <div className="gov-card">
+              <div className="gc-label">Expected Revenue</div>
+              <div className="gc-value" style={{color:'var(--teal)'}}>{fmtINR(d.estimated_revenue)}</div>
+              <div className="gc-sub">from {d.total_leads} qualified leads</div>
+            </div>
+            <div className="gov-card">
+              <div className="gc-label">Outreach Cost</div>
+              <div className="gc-value" style={{color:'var(--amber)'}}>{fmtINR(d.estimated_cost)}</div>
+              <div className="gc-sub">total campaign spend</div>
+            </div>
+            <div className="gov-card">
+              <div className="gc-label">ROI Multiplier</div>
+              <div className="gc-value" style={{color:'var(--green)'}}>{d.roi_multiplier.toFixed(1)}×</div>
+              <div className="gc-sub">net profit {fmtINR(d.net_profit)}</div>
+            </div>
+          </div>
+          <div className="section-title"><span className="dot"></span>Segment ROI Breakdown</div>
+          <table className="segment-table" style={{background:'var(--surface)',borderRadius:12,overflow:'hidden'}}>
+            <thead>
+              <tr>
+                <th>Segment</th><th>Leads</th><th>Conv %</th><th>Revenue</th><th>Cost</th><th>ROI</th>
+              </tr>
+            </thead>
+            <tbody>
+              {d.segment_performance.map(s => (
+                <tr key={s.segment_name}>
+                  <td style={{color:'var(--text-hi)',fontWeight:600}}>{s.segment_name}</td>
+                  <td>{s.total_leads}</td>
+                  <td style={{color:'var(--teal)'}}>{s.conversion_rate_pct.toFixed(1)}%</td>
+                  <td style={{fontFamily:'var(--font-mono)'}}>{fmtINR(s.expected_revenue)}</td>
+                  <td style={{fontFamily:'var(--font-mono)'}}>{fmtINR(s.estimated_outreach_cost)}</td>
+                  <td style={{color: s.roi_pct > 0 ? 'var(--green)' : 'var(--red)', fontWeight:600}}>
+                    {s.roi_pct.toFixed(0)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Admin Panel ---------- */
+function AdminPanel({token, onUnauthorized, showToast}) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'relationship_manager' });
+  const [error, setError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const loadUsers = useCallback(() => {
+    fetch(`${API_BASE}/api/users`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => {
+        if (r.status === 401) { onUnauthorized(); throw new Error('unauthorized'); }
+        return r.json();
+      })
+      .then(data => { setUsers(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => { setLoading(false); });
+  }, [token, onUnauthorized]);
+
+  useEffect(() => { loadUsers(); }, [loadUsers]);
+
+  const handleDelete = (userId, userName) => {
+    if (!window.confirm(`Remove user "${userName}"? This action cannot be undone.`)) return;
+    fetch(`${API_BASE}/api/users/${userId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(async r => {
+        if (r.status === 401) { onUnauthorized(); return; }
+        const d = await r.json();
+        if (d.status === 'deleted') {
+          setUsers(prev => prev.filter(u => u.user_id !== userId));
+          showToast(`User "${userName}" removed`, 'success');
+        }
+      })
+      .catch(() => showToast('Failed to delete user', 'error'));
+  };
+
+  const handleCreateUserSubmit = (e) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    fetch(`${API_BASE}/api/users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(form)
+    })
+      .then(async r => {
+        if (r.status === 401) { onUnauthorized(); return; }
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || 'Failed to create user');
+        return d;
+      })
+      .then(newUser => {
+        if (newUser) {
+          setUsers(prev => [newUser, ...prev]);
+          setShowCreateModal(false);
+          setForm({ name: '', email: '', password: '', role: 'relationship_manager' });
+          showToast(`User "${newUser.name}" created`, 'success');
+        }
+        setSubmitting(false);
+      })
+      .catch(err => {
+        setError(err.message);
+        setSubmitting(false);
+      });
+  };
+
+  const roleClass = (role) => role === 'admin' ? 'admin' : role === 'relationship_manager' ? 'rm' : 'analyst';
+  const roleTag = (role) => role === 'relationship_manager' ? 'RM' : role.charAt(0).toUpperCase() + role.slice(1);
+  const avatarInitials = (name) => name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+
+  if (loading) return <div className="admin-section"><div style={{display:'flex',justifyContent:'center',padding:60}}><div className="spinner"></div></div></div>;
+
+  return (
+    <div className="admin-section">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24}}>
+        <div>
+          <div className="section-title" style={{margin:0}}><span className="dot"></span>User Management</div>
+          <div style={{fontSize:13,color:'var(--text-low)',marginTop:6}}>{users.length} registered user{users.length !== 1 ? 's' : ''}</div>
+        </div>
+        <button className="btn primary" onClick={() => { setError(null); setShowCreateModal(true); }}>
+          + Create User
+        </button>
+      </div>
+      <div className="admin-grid">
+        {users.map(u => (
+          <div key={u.user_id} className="admin-user-card">
+            <div className={`admin-user-avatar role-${roleClass(u.role)}`}>{avatarInitials(u.name)}</div>
+            <div className="admin-user-info">
+              <div className="admin-user-name">{u.name}</div>
+              <div className="admin-user-meta">{u.email}</div>
+              <div style={{marginTop:6}}>
+                <span className={`role-tag ${u.role}`}>{roleTag(u.role)}</span>
+              </div>
+            </div>
+            <div style={{marginLeft:'auto',fontSize:12,color:'var(--text-low)',textAlign:'right'}}>
+              <div>Joined</div>
+              <div style={{color:'var(--text-mid)'}}>{new Date(u.created_at).toLocaleDateString('en-IN')}</div>
+            </div>
+            <button
+              className="btn danger"
+              style={{padding:'7px 12px',fontSize:12}}
+              onClick={() => handleDelete(u.user_id, u.name)}
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        {users.length === 0 && (
+          <div style={{padding:40,textAlign:'center',color:'var(--text-low)',fontSize:13}}>No users found.</div>
+        )}
+      </div>
+
+      {/* ---------- Create User Modal ---------- */}
+      {showCreateModal && (
+        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Create New User Account</h3>
+              <button className="modal-close" onClick={() => setShowCreateModal(false)}>&times;</button>
+            </div>
+            {error && <div className="auth-error">{error}</div>}
+            <form onSubmit={handleCreateUserSubmit}>
+              <div className="auth-field">
+                <label>Full Name</label>
+                <input type="text" className="auth-input" required placeholder="e.g. Anand Sen"
+                  value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+              </div>
+              <div className="auth-field">
+                <label>Email Address</label>
+                <input type="email" className="auth-input" required placeholder="e.g. anand@idbibank.com"
+                  value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+              </div>
+              <div className="auth-field">
+                <label>Password</label>
+                <input type="password" className="auth-input" required minLength="8" placeholder="••••••••"
+                  value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
+              </div>
+              <div className="auth-field">
+                <label>Assigned Role</label>
+                <select className="auth-select" value={form.role}
+                  onChange={e => setForm({...form, role: e.target.value})}>
+                  <option value="relationship_manager">Relationship Manager</option>
+                  <option value="analyst">Analyst (Read-Only)</option>
+                  <option value="admin">Administrator</option>
+                </select>
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn" onClick={() => setShowCreateModal(false)}>Cancel</button>
+                <button type="submit" className="btn primary" disabled={submitting}>
+                  {submitting ? 'Creating…' : 'Create User'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Leads View ---------- */
+function LeadsView({stats, leads, selected, setSelected, loading, sort, setSort, tierFilter, setTierFilter, search, setSearch, auth, token, onUnauthorized, generating, handleRegenerate, setShowCustomerModal, setShowTxnModal, setModalFormError}) {
+  return (
+    <>
+      <KPIStrip stats={stats} />
+      <div className="body-grid">
+        <div className="queue">
+          <div className="queue-controls">
+            <div className="search-box">
+              <IconSearch style={{color:'var(--text-low)'}}/>
+              <input id="lead-search" placeholder="Search by name or customer ID…" value={search} onChange={e=>setSearch(e.target.value)} />
+            </div>
+            <div className="filter-row">
+              {['All','Tier 1','Tier 2','Tier 3'].map(t => (
+                <div key={t} id={`filter-${t.toLowerCase().replace(' ','-')}`} className={`chip ${tierFilter===t?'active':''}`} onClick={()=>setTierFilter(t)}>{t}</div>
+              ))}
+              <select id="sort-select" value={sort} onChange={e=>setSort(e.target.value)}
+                style={{marginLeft:'auto', background:'var(--surface-2)', color:'var(--text-mid)', border:'1px solid var(--border)', borderRadius:8, fontSize:12, padding:'6px 8px'}}>
+                <option value="trust_score">Sort: Trust Score</option>
+                <option value="intent_score">Sort: Intent Score</option>
+                <option value="hours_to_lead">Sort: Time to Lead</option>
+              </select>
+            </div>
+          </div>
+          <div className="queue-list">
+            {loading ? <div style={{padding:30, textAlign:'center'}}><div className="spinner" style={{margin:'0 auto'}}></div></div> :
+              leads.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads match this filter.</div> :
+              leads.map(l => (
+                <LeadCard key={l.customer_id} lead={l} selected={selected===l.customer_id} onClick={()=>setSelected(l.customer_id)} />
+              ))
+            }
+          </div>
+        </div>
+        <div className="detail">
+          <DetailPanel customerId={selected} token={token} onUnauthorized={onUnauthorized} />
+        </div>
+      </div>
+    </>
+  );
+}
+
 /* ---------- App ---------- */
 function App() {
   const [auth, setAuth] = useState(() => {
     try {
       const stored = localStorage.getItem(storageKey);
       return stored ? JSON.parse(stored) : null;
-    } catch (e) {
-      return null;
-    }
+    } catch (e) { return null; }
   });
 
+  const [activeTab, setActiveTab] = useState('leads');
   const [stats, setStats] = useState(null);
   const [leads, setLeads] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -749,14 +1192,14 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [connError, setConnError] = useState(null);
+  const [toast, setToast] = useState(null);
 
   const [usersRegistered, setUsersRegistered] = useState(0);
-  const [authMode, setAuthMode] = useState('login'); 
+  const [authMode, setAuthMode] = useState('login');
   const [authForm, setAuthForm] = useState({ name: '', email: '', password: '', role: 'relationship_manager' });
   const [authError, setAuthError] = useState(null);
   const [authLoading, setAuthLoading] = useState(false);
 
-  // --- Modals State ---
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showTxnModal, setShowTxnModal] = useState(false);
   const [modalFormError, setModalFormError] = useState(null);
@@ -766,90 +1209,14 @@ function App() {
     customer_id: '', name: '', age: 32, city: '', state: '', employment_type: 'Salaried',
     declared_income: '', true_monthly_income: '', true_loan_type: 'None', persona: 'manual'
   });
-  
+
   const [txnForm, setTxnForm] = useState({
     customer_id: '', type: 'SALARY_CREDIT', amount: '', counterparty: 'Employer Payroll', timestamp: ''
   });
 
-  const handleCreateCustomerSubmit = (e) => {
-    e.preventDefault();
-    if (!auth) return;
-    setModalFormError(null);
-    setModalFormLoading(true);
-
-    const payload = {
-      ...customerForm,
-      age: parseInt(customerForm.age, 10),
-      declared_income: customerForm.declared_income ? parseFloat(customerForm.declared_income) : null,
-      true_monthly_income: customerForm.true_monthly_income ? parseFloat(customerForm.true_monthly_income) : null,
-    };
-
-    fetch(`${API_BASE}/api/customers`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${auth.token}`
-      },
-      body: JSON.stringify(payload)
-    })
-      .then(async r => {
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.detail || 'Failed to create customer');
-        return d;
-      })
-      .then((d) => {
-        setModalFormLoading(false);
-        setShowCustomerModal(false);
-        setCustomerForm({
-          customer_id: '', name: '', age: 32, city: '', state: '', employment_type: 'Salaried',
-          declared_income: '', true_monthly_income: '', true_loan_type: 'None', persona: 'manual'
-        });
-        loadAll();
-      })
-      .catch(err => {
-        setModalFormError(err.message);
-        setModalFormLoading(false);
-      });
-  };
-
-  const handleCreateTxnSubmit = (e) => {
-    e.preventDefault();
-    if (!auth) return;
-    setModalFormError(null);
-    setModalFormLoading(true);
-
-    const payload = {
-      ...txnForm,
-      amount: parseFloat(txnForm.amount),
-      timestamp: txnForm.timestamp || null
-    };
-
-    fetch(`${API_BASE}/api/transactions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${auth.token}`
-      },
-      body: JSON.stringify(payload)
-    })
-      .then(async r => {
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.detail || 'Failed to log transaction');
-        return d;
-      })
-      .then((d) => {
-        setModalFormLoading(false);
-        setShowTxnModal(false);
-        setTxnForm({
-          customer_id: '', type: 'SALARY_CREDIT', amount: '', counterparty: 'Employer Payroll', timestamp: ''
-        });
-        loadAll();
-      })
-      .catch(err => {
-        setModalFormError(err.message);
-        setModalFormLoading(false);
-      });
-  };
+  const showToast = useCallback((msg, type = 'success') => {
+    setToast({msg, type});
+  }, []);
 
   const handleUnauthorized = useCallback(() => {
     setAuth(null);
@@ -869,48 +1236,37 @@ function App() {
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    checkUsers();
-  }, [auth, checkUsers]);
+  useEffect(() => { checkUsers(); }, [auth, checkUsers]);
 
   const loadAll = useCallback(() => {
     if (!auth) return;
     setLoading(true); setConnError(null);
     Promise.all([
-      fetch(`${API_BASE}/api/stats`, {
-        headers: { 'Authorization': `Bearer ${auth.token}` }
-      }).then(r => { 
-        if (r.status === 401) { handleUnauthorized(); throw new Error('unauthorized'); }
-        if (!r.ok) throw new Error('stats'); 
-        return r.json(); 
-      }),
-      fetch(`${API_BASE}/api/leads?sort=${sort}&limit=200`, {
-        headers: { 'Authorization': `Bearer ${auth.token}` }
-      }).then(r => { 
-        if (r.status === 401) { handleUnauthorized(); throw new Error('unauthorized'); }
-        if (!r.ok) throw new Error('leads'); 
-        return r.json(); 
-      }),
+      fetch(`${API_BASE}/api/stats`, { headers: { 'Authorization': `Bearer ${auth.token}` } })
+        .then(r => {
+          if (r.status === 401) { handleUnauthorized(); throw new Error('unauthorized'); }
+          if (!r.ok) throw new Error('stats');
+          return r.json();
+        }),
+      fetch(`${API_BASE}/api/leads?sort=${sort}&limit=200`, { headers: { 'Authorization': `Bearer ${auth.token}` } })
+        .then(r => {
+          if (r.status === 401) { handleUnauthorized(); throw new Error('unauthorized'); }
+          if (!r.ok) throw new Error('leads');
+          return r.json();
+        }),
     ]).then(([s, l]) => { setStats(s); setLeads(l); setLoading(false); if (l.length) setSelected(prev => prev || l[0].customer_id); })
-      .catch((e) => { 
-        if (e.message !== 'unauthorized') {
-          setConnError(true); 
-        }
-        setLoading(false); 
+      .catch((e) => {
+        if (e.message !== 'unauthorized') setConnError(true);
+        setLoading(false);
       });
   }, [sort, auth, handleUnauthorized]);
 
-  useEffect(() => { 
-    if (auth) {
-      loadAll(); 
-    }
-  }, [loadAll, auth]);
+  useEffect(() => { if (auth) loadAll(); }, [loadAll, auth]);
 
   const handleAuthSubmit = (e) => {
     e.preventDefault();
     setAuthError(null);
     setAuthLoading(true);
-
     const url = authMode === 'login' ? `${API_BASE}/api/auth/login` : `${API_BASE}/api/auth/register`;
     const payload = authMode === 'login'
       ? { email: authForm.email, password: authForm.password }
@@ -923,9 +1279,7 @@ function App() {
     })
       .then(async r => {
         const data = await r.json();
-        if (!r.ok) {
-          throw new Error(data.detail || 'Authentication failed');
-        }
+        if (!r.ok) throw new Error(data.detail || 'Authentication failed');
         return data;
       })
       .then(d => {
@@ -934,10 +1288,7 @@ function App() {
         localStorage.setItem(storageKey, JSON.stringify(newAuth));
         setAuthLoading(false);
       })
-      .catch(err => {
-        setAuthError(err.message);
-        setAuthLoading(false);
-      });
+      .catch(err => { setAuthError(err.message); setAuthLoading(false); });
   };
 
   const handleLogout = () => {
@@ -945,14 +1296,11 @@ function App() {
     fetch(`${API_BASE}/api/auth/logout`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${auth.token}` }
-    })
-      .finally(() => {
-        setAuth(null);
-        localStorage.removeItem(storageKey);
-        setSelected(null);
-        setLeads([]);
-        setStats(null);
-      });
+    }).finally(() => {
+      setAuth(null);
+      localStorage.removeItem(storageKey);
+      setSelected(null); setLeads([]); setStats(null);
+    });
   };
 
   const handleRegenerate = () => {
@@ -966,104 +1314,132 @@ function App() {
         if (r.status === 401) { handleUnauthorized(); throw new Error('unauthorized'); }
         return r.json();
       })
-      .then(() => { setGenerating(false); setSelected(null); loadAll(); })
+      .then(() => { setGenerating(false); setSelected(null); loadAll(); showToast('Dataset regenerated successfully', 'success'); })
       .catch(() => setGenerating(false));
   };
 
-  const filtered = useMemo(() => {
-    return leads.filter(l => {
-      if (tierFilter !== 'All' && l.tier !== tierFilter) return false;
-      if (search && !(l.name.toLowerCase().includes(search.toLowerCase()) || l.customer_id.toLowerCase().includes(search.toLowerCase()))) return false;
-      return true;
-    });
-  }, [leads, tierFilter, search]);
+  const handleCreateCustomerSubmit = (e) => {
+    e.preventDefault();
+    if (!auth) return;
+    setModalFormError(null);
+    setModalFormLoading(true);
+    const payload = {
+      ...customerForm,
+      age: parseInt(customerForm.age, 10),
+      declared_income: customerForm.declared_income ? parseFloat(customerForm.declared_income) : null,
+      true_monthly_income: customerForm.true_monthly_income ? parseFloat(customerForm.true_monthly_income) : null,
+    };
+    fetch(`${API_BASE}/api/customers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
+      body: JSON.stringify(payload)
+    })
+      .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail || 'Failed to create customer'); return d; })
+      .then(() => {
+        setModalFormLoading(false); setShowCustomerModal(false);
+        setCustomerForm({ customer_id: '', name: '', age: 32, city: '', state: '', employment_type: 'Salaried', declared_income: '', true_monthly_income: '', true_loan_type: 'None', persona: 'manual' });
+        loadAll(); showToast('Customer created successfully', 'success');
+      })
+      .catch(err => { setModalFormError(err.message); setModalFormLoading(false); });
+  };
 
+  const handleCreateTxnSubmit = (e) => {
+    e.preventDefault();
+    if (!auth) return;
+    setModalFormError(null);
+    setModalFormLoading(true);
+    const payload = { ...txnForm, amount: parseFloat(txnForm.amount), timestamp: txnForm.timestamp || null };
+    fetch(`${API_BASE}/api/transactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
+      body: JSON.stringify(payload)
+    })
+      .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.detail || 'Failed to log transaction'); return d; })
+      .then(() => {
+        setModalFormLoading(false); setShowTxnModal(false);
+        setTxnForm({ customer_id: '', type: 'SALARY_CREDIT', amount: '', counterparty: 'Employer Payroll', timestamp: '' });
+        loadAll(); showToast('Transaction logged successfully', 'success');
+      })
+      .catch(err => { setModalFormError(err.message); setModalFormLoading(false); });
+  };
+
+  const filtered = useMemo(() => leads.filter(l => {
+    if (tierFilter !== 'All' && l.tier !== tierFilter) return false;
+    if (search && !(l.name.toLowerCase().includes(search.toLowerCase()) || l.customer_id.toLowerCase().includes(search.toLowerCase()))) return false;
+    return true;
+  }), [leads, tierFilter, search]);
+
+  const isAdmin = auth?.user?.role === 'admin';
+  const canWrite = auth?.user?.role === 'admin' || auth?.user?.role === 'relationship_manager';
+
+  /* ---- Auth screen ---- */
   if (!auth) {
     return (
       <div className="auth-container">
         <div className="auth-card">
-          <div className="auth-title">
-            <IconPulse style={{color:'var(--teal)'}} /> LENS Engine
+          <div className="auth-logo">
+            <div className="auth-logo-mark">
+              <IconPulse style={{color:'#04141F', width:20, height:20}} />
+            </div>
+            <p className="auth-title">LENS Engine</p>
           </div>
-          <div className="auth-subtitle">
-            {usersRegistered === 0 
-              ? "Welcome! Initialize the system by registering the primary Administrator account." 
+          <p className="auth-subtitle">
+            {usersRegistered === 0
+              ? "Welcome! Initialize the platform by registering the primary Administrator account."
               : "Access the RM Lead Console with your authorized credentials."}
-          </div>
-          
-          <form onSubmit={handleAuthSubmit}>
+          </p>
+
+          <form onSubmit={handleAuthSubmit} id="auth-form">
             {authError && <div className="auth-error">{authError}</div>}
-            
+
             {authMode === 'register' && (
               <div className="auth-field">
-                <label>Full Name</label>
-                <input 
-                  type="text" 
-                  className="auth-input"
-                  required
+                <label htmlFor="auth-name">Full Name</label>
+                <input id="auth-name" type="text" className="auth-input" required
                   placeholder="e.g. Shrinivas Raman"
-                  value={authForm.name} 
-                  onChange={e => setAuthForm({...authForm, name: e.target.value})}
-                />
+                  value={authForm.name} onChange={e => setAuthForm({...authForm, name: e.target.value})} />
               </div>
             )}
-            
+
             <div className="auth-field">
-              <label>Email Address</label>
-              <input 
-                type="email" 
-                className="auth-input" 
-                required
+              <label htmlFor="auth-email">Email Address</label>
+              <input id="auth-email" type="email" className="auth-input" required
                 placeholder="name@idbibank.com"
-                value={authForm.email} 
-                onChange={e => setAuthForm({...authForm, email: e.target.value})}
-              />
+                value={authForm.email} onChange={e => setAuthForm({...authForm, email: e.target.value})} />
             </div>
-            
+
             <div className="auth-field">
-              <label>Password</label>
-              <input 
-                type="password" 
-                className="auth-input" 
-                required
-                minLength="8"
+              <label htmlFor="auth-password">Password</label>
+              <input id="auth-password" type="password" className="auth-input" required minLength="8"
                 placeholder="••••••••"
-                value={authForm.password} 
-                onChange={e => setAuthForm({...authForm, password: e.target.value})}
-              />
+                value={authForm.password} onChange={e => setAuthForm({...authForm, password: e.target.value})} />
             </div>
-            
+
             {authMode === 'register' && usersRegistered > 0 && (
               <div className="auth-field">
-                <label>Assigned Role</label>
-                <select 
-                  className="auth-select"
-                  value={authForm.role} 
-                  onChange={e => setAuthForm({...authForm, role: e.target.value})}
-                >
+                <label htmlFor="auth-role">Assigned Role</label>
+                <select id="auth-role" className="auth-select" value={authForm.role}
+                  onChange={e => setAuthForm({...authForm, role: e.target.value})}>
                   <option value="relationship_manager">Relationship Manager</option>
-                  <option value="analyst">Analyst</option>
+                  <option value="analyst">Analyst (Read-Only)</option>
                   <option value="admin">Administrator</option>
                 </select>
               </div>
             )}
-            
-            <button 
-              type="submit" 
-              className="btn primary" 
-              style={{width: '100%', justifyContent: 'center', padding: '11px', marginTop: '10px'}}
-              disabled={authLoading}
-            >
-              {authLoading ? 'Authorizing...' : authMode === 'login' ? 'Sign In' : 'Create Account'}
+
+            <button id="auth-submit" type="submit" className="btn primary"
+              style={{width:'100%', justifyContent:'center', padding:'12px', marginTop:'10px', fontSize:14}}
+              disabled={authLoading}>
+              {authLoading ? 'Authorizing…' : authMode === 'login' ? 'Sign In' : 'Create Account'}
             </button>
           </form>
-          
+
           {usersRegistered > 0 && (
             <div className="auth-switch">
               {authMode === 'login' ? (
-                <>Need an account? <span onClick={() => { setAuthMode('register'); setAuthForm(prev => ({ ...prev, role: 'relationship_manager' })); }}>Register here</span></>
+                <>Need an account? <span id="auth-toggle" onClick={() => { setAuthMode('register'); setAuthForm(prev => ({...prev, role:'relationship_manager'})); }}>Register here</span></>
               ) : (
-                <>Already have an account? <span onClick={() => setAuthMode('login')}>Sign in here</span></>
+                <>Already have an account? <span id="auth-toggle" onClick={() => setAuthMode('login')}>Sign in here</span></>
               )}
             </div>
           )}
@@ -1072,6 +1448,7 @@ function App() {
     );
   }
 
+  /* ---- Connection error ---- */
   if (connError) {
     return (
       <div className="loading-screen">
@@ -1079,7 +1456,7 @@ function App() {
         <div style={{fontFamily:'Space Grotesk', fontSize:18, color:'var(--text-hi)'}}>Can't reach the LENS backend</div>
         <div className="error-banner" style={{margin:0, maxWidth:480}}>
           Expected the API at <code>{API_BASE}</code>. Start it with:<br/>
-          <code>cd backend && uvicorn app:app --reload --port 8000</code><br/>
+          <code>cd backend &amp;&amp; uvicorn app:app --reload --port 8000</code><br/>
           Then refresh this page (or pass <code>?api=http://your-host:8000</code> in the URL).
         </div>
         <button className="btn primary" onClick={loadAll}><IconRefresh/> Retry</button>
@@ -1087,25 +1464,36 @@ function App() {
     );
   }
 
+  const tabs = [
+    { id: 'leads', label: 'Lead Console', icon: <IconList /> },
+    { id: 'governance', label: 'Governance', icon: <IconShield /> },
+    ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: <IconAdmin /> }] : []),
+  ];
+
+  /* ---- Main app ---- */
   return (
     <div className="app">
+      {/* Sidebar */}
       <div className="sidebar">
-        <div className="brand-mark"><IconPulse style={{color:'var(--teal)'}} /></div>
-        <div className="nav-icon active"><IconList/></div>
-        <div className="nav-icon"><IconUser/></div>
-        <div className="sidebar-spacer"></div>
-        {auth && (
-          <div className="nav-icon" onClick={handleLogout} title="Sign Out" style={{color: 'var(--red)', marginBottom: 12}}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
+        <div className="brand-mark"><IconPulse style={{color:'var(--teal)'}}/></div>
+        {tabs.map(t => (
+          <div key={t.id} id={`nav-${t.id}`}
+            className={`nav-icon ${activeTab===t.id?'active':''}`}
+            onClick={() => setActiveTab(t.id)}
+            title={t.label}>
+            {t.icon}
+            <span className="nav-tooltip">{t.label}</span>
           </div>
-        )}
+        ))}
+        <div className="sidebar-spacer"></div>
+        <div className="nav-icon" onClick={handleLogout} title="Sign Out" style={{color:'var(--red)'}}>
+          <IconLogout />
+          <span className="nav-tooltip">Sign Out</span>
+        </div>
         <div className="sidebar-foot">LENS · IDBI INNOVATE</div>
       </div>
 
+      {/* Main content */}
       <div className="main">
         <div className="topbar">
           <div>
@@ -1114,67 +1502,55 @@ function App() {
           </div>
           <div className="topbar-actions">
             {auth && (
-              <span style={{fontSize: 13, color: 'var(--text-mid)', marginRight: 12, display: 'inline-flex', alignItems: 'center', gap: 6}}>
-                <span className="dot" style={{background: auth.user.role === 'admin' ? 'var(--amber)' : auth.user.role === 'relationship_manager' ? 'var(--teal)' : 'var(--text-low)', width: 8, height: 8, borderRadius: '50%', display: 'inline-block'}}></span>
-                <b>{auth.user.name}</b> ({auth.user.role.toUpperCase().replace('_', ' ')})
+              <span style={{fontSize:13, color:'var(--text-mid)', display:'inline-flex', alignItems:'center', gap:6}}>
+                <span style={{
+                  background: auth.user.role === 'admin' ? 'var(--amber)' : auth.user.role === 'relationship_manager' ? 'var(--teal)' : 'var(--text-low)',
+                  width:8, height:8, borderRadius:'50%', display:'inline-block', flexShrink:0
+                }}></span>
+                <b>{auth.user.name}</b>
+                <span style={{color:'var(--text-low)'}}>({auth.user.role.replace('_',' ')})</span>
               </span>
             )}
-            
-            {auth && (auth.user.role === 'admin' || auth.user.role === 'relationship_manager') ? (
+
+            {canWrite && activeTab === 'leads' && (
               <>
-                <button className="btn" onClick={() => { setModalFormError(null); setShowCustomerModal(true); }} style={{borderColor: 'var(--teal-dim)'}}>
+                <button id="btn-create-customer" className="btn" onClick={() => { setModalFormError(null); setShowCustomerModal(true); }} style={{borderColor:'var(--teal-dim)'}}>
                   + Create Customer
                 </button>
-                <button className="btn" onClick={() => { setModalFormError(null); setShowTxnModal(true); }} style={{borderColor: 'var(--teal-dim)'}}>
+                <button id="btn-add-txn" className="btn" onClick={() => { setModalFormError(null); setShowTxnModal(true); }} style={{borderColor:'var(--teal-dim)'}}>
                   + Add Transaction
                 </button>
               </>
-            ) : (
-              <span style={{fontSize: 12, color: 'var(--text-low)', fontStyle: 'italic', marginRight: 12}}>
-                Read-Only Console
-              </span>
             )}
 
-            <button className="btn primary" onClick={handleRegenerate} disabled={generating || (auth && auth.user.role === 'analyst')}>
-              <IconRefresh/> {generating ? 'Scanning transactions…' : 'Regenerate dataset & rescan'}
-            </button>
+            {activeTab === 'leads' && (
+              <button id="btn-regenerate" className="btn primary" onClick={handleRegenerate} disabled={generating || !canWrite}>
+                <IconRefresh/> {generating ? 'Scanning…' : 'Regenerate & Rescan'}
+              </button>
+            )}
           </div>
         </div>
 
-        <KPIStrip stats={stats} />
+        {/* Tab content */}
+        {activeTab === 'leads' && (
+          <LeadsView
+            stats={stats} leads={filtered} selected={selected} setSelected={setSelected}
+            loading={loading} sort={sort} setSort={setSort} tierFilter={tierFilter}
+            setTierFilter={setTierFilter} search={search} setSearch={setSearch}
+            auth={auth} token={auth.token} onUnauthorized={handleUnauthorized}
+            generating={generating} handleRegenerate={handleRegenerate}
+            setShowCustomerModal={setShowCustomerModal} setShowTxnModal={setShowTxnModal}
+            setModalFormError={setModalFormError}
+          />
+        )}
 
-        <div className="body-grid">
-          <div className="queue">
-            <div className="queue-controls">
-              <div className="search-box">
-                <IconSearch style={{color:'var(--text-low)'}}/>
-                <input placeholder="Search by name or customer ID…" value={search} onChange={e=>setSearch(e.target.value)} />
-              </div>
-              <div className="filter-row">
-                {['All','Tier 1','Tier 2','Tier 3'].map(t => (
-                  <div key={t} className={`chip ${tierFilter===t?'active':''}`} onClick={()=>setTierFilter(t)}>{t}</div>
-                ))}
-                <select value={sort} onChange={e=>setSort(e.target.value)}
-                  style={{marginLeft:'auto', background:'var(--surface-2)', color:'var(--text-mid)', border:'1px solid var(--border)', borderRadius:8, fontSize:12, padding:'6px 8px'}}>
-                  <option value="trust_score">Sort: Trust Score</option>
-                  <option value="intent_score">Sort: Intent Score</option>
-                  <option value="hours_to_lead">Sort: Time to Lead</option>
-                </select>
-              </div>
-            </div>
-            <div className="queue-list">
-              {loading ? <div style={{padding:30, textAlign:'center'}}><div className="spinner" style={{margin:'0 auto'}}></div></div> :
-                filtered.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads match this filter.</div> :
-                filtered.map(l => (
-                  <LeadCard key={l.customer_id} lead={l} selected={selected===l.customer_id} onClick={()=>setSelected(l.customer_id)} />
-                ))
-              }
-            </div>
-          </div>
-          <div className="detail">
-            <DetailPanel customerId={selected} token={auth?.token} onUnauthorized={handleUnauthorized} />
-          </div>
-        </div>
+        {activeTab === 'governance' && (
+          <GovernancePanel token={auth.token} onUnauthorized={handleUnauthorized} />
+        )}
+
+        {activeTab === 'admin' && isAdmin && (
+          <AdminPanel token={auth.token} onUnauthorized={handleUnauthorized} showToast={showToast} />
+        )}
       </div>
 
       {/* ---------- Create Customer Modal ---------- */}
@@ -1185,114 +1561,58 @@ function App() {
               <h3>Create New Customer</h3>
               <button className="modal-close" onClick={() => setShowCustomerModal(false)}>&times;</button>
             </div>
-            
             {modalFormError && <div className="auth-error">{modalFormError}</div>}
-            
-            <form onSubmit={handleCreateCustomerSubmit}>
+            <form onSubmit={handleCreateCustomerSubmit} id="create-customer-form">
               <div className="form-grid">
                 <div className="auth-field">
                   <label>Customer ID</label>
-                  <input 
-                    type="text" 
-                    className="auth-input" 
-                    required 
-                    placeholder="e.g. CUST10151" 
-                    value={customerForm.customer_id}
-                    onChange={e => setCustomerForm({...customerForm, customer_id: e.target.value})}
-                  />
+                  <input type="text" className="auth-input" required placeholder="e.g. CUST10151"
+                    value={customerForm.customer_id} onChange={e => setCustomerForm({...customerForm, customer_id: e.target.value})} />
                 </div>
-                
                 <div className="auth-field">
                   <label>Full Name</label>
-                  <input 
-                    type="text" 
-                    className="auth-input" 
-                    required 
-                    placeholder="e.g. Rajesh Kumar" 
-                    value={customerForm.name}
-                    onChange={e => setCustomerForm({...customerForm, name: e.target.value})}
-                  />
+                  <input type="text" className="auth-input" required placeholder="e.g. Rajesh Kumar"
+                    value={customerForm.name} onChange={e => setCustomerForm({...customerForm, name: e.target.value})} />
                 </div>
-                
                 <div className="auth-field">
                   <label>Age</label>
-                  <input 
-                    type="number" 
-                    className="auth-input" 
-                    required 
-                    min="18" max="100"
-                    value={customerForm.age}
-                    onChange={e => setCustomerForm({...customerForm, age: e.target.value})}
-                  />
+                  <input type="number" className="auth-input" required min="18" max="100"
+                    value={customerForm.age} onChange={e => setCustomerForm({...customerForm, age: e.target.value})} />
                 </div>
-                
                 <div className="auth-field">
                   <label>Employment Type</label>
-                  <select 
-                    className="auth-select"
-                    value={customerForm.employment_type}
-                    onChange={e => setCustomerForm({...customerForm, employment_type: e.target.value})}
-                  >
+                  <select className="auth-select" value={customerForm.employment_type}
+                    onChange={e => setCustomerForm({...customerForm, employment_type: e.target.value})}>
                     <option value="Salaried">Salaried</option>
                     <option value="Self-Employed">Self-Employed</option>
                     <option value="Gig Worker">Gig Worker</option>
                     <option value="Freelancer">Freelancer</option>
                   </select>
                 </div>
-                
                 <div className="auth-field">
                   <label>City</label>
-                  <input 
-                    type="text" 
-                    className="auth-input" 
-                    required 
-                    placeholder="e.g. Pune" 
-                    value={customerForm.city}
-                    onChange={e => setCustomerForm({...customerForm, city: e.target.value})}
-                  />
+                  <input type="text" className="auth-input" required placeholder="e.g. Pune"
+                    value={customerForm.city} onChange={e => setCustomerForm({...customerForm, city: e.target.value})} />
                 </div>
-                
                 <div className="auth-field">
                   <label>State</label>
-                  <input 
-                    type="text" 
-                    className="auth-input" 
-                    required 
-                    placeholder="e.g. Maharashtra" 
-                    value={customerForm.state}
-                    onChange={e => setCustomerForm({...customerForm, state: e.target.value})}
-                  />
+                  <input type="text" className="auth-input" required placeholder="e.g. Maharashtra"
+                    value={customerForm.state} onChange={e => setCustomerForm({...customerForm, state: e.target.value})} />
                 </div>
-                
                 <div className="auth-field">
                   <label>Declared Monthly Income (₹)</label>
-                  <input 
-                    type="number" 
-                    className="auth-input" 
-                    placeholder="e.g. 75000" 
-                    value={customerForm.declared_income || ''}
-                    onChange={e => setCustomerForm({...customerForm, declared_income: e.target.value})}
-                  />
+                  <input type="number" className="auth-input" placeholder="e.g. 75000"
+                    value={customerForm.declared_income || ''} onChange={e => setCustomerForm({...customerForm, declared_income: e.target.value})} />
                 </div>
-                
                 <div className="auth-field">
                   <label>Actual Monthly Income (₹)</label>
-                  <input 
-                    type="number" 
-                    className="auth-input" 
-                    placeholder="e.g. 80000" 
-                    value={customerForm.true_monthly_income || ''}
-                    onChange={e => setCustomerForm({...customerForm, true_monthly_income: e.target.value})}
-                  />
+                  <input type="number" className="auth-input" placeholder="e.g. 80000"
+                    value={customerForm.true_monthly_income || ''} onChange={e => setCustomerForm({...customerForm, true_monthly_income: e.target.value})} />
                 </div>
-                
                 <div className="auth-field form-full">
                   <label>Realized Loan Type (Ground Truth)</label>
-                  <select 
-                    className="auth-select"
-                    value={customerForm.true_loan_type}
-                    onChange={e => setCustomerForm({...customerForm, true_loan_type: e.target.value})}
-                  >
+                  <select className="auth-select" value={customerForm.true_loan_type}
+                    onChange={e => setCustomerForm({...customerForm, true_loan_type: e.target.value})}>
                     <option value="None">None</option>
                     <option value="Personal Loan">Personal Loan</option>
                     <option value="Auto Loan">Auto Loan</option>
@@ -1301,11 +1621,10 @@ function App() {
                   </select>
                 </div>
               </div>
-              
               <div className="form-actions">
                 <button type="button" className="btn" onClick={() => setShowCustomerModal(false)}>Cancel</button>
                 <button type="submit" className="btn primary" disabled={modalFormLoading}>
-                  {modalFormLoading ? 'Creating...' : 'Create Customer'}
+                  {modalFormLoading ? 'Creating…' : 'Create Customer'}
                 </button>
               </div>
             </form>
@@ -1321,33 +1640,23 @@ function App() {
               <h3>Log New Transaction</h3>
               <button className="modal-close" onClick={() => setShowTxnModal(false)}>&times;</button>
             </div>
-            
             {modalFormError && <div className="auth-error">{modalFormError}</div>}
-            
-            <form onSubmit={handleCreateTxnSubmit}>
+            <form onSubmit={handleCreateTxnSubmit} id="create-txn-form">
               <div className="auth-field">
                 <label>Target Customer</label>
-                <select 
-                  className="auth-select"
-                  required
-                  value={txnForm.customer_id}
-                  onChange={e => setTxnForm({...txnForm, customer_id: e.target.value})}
-                >
+                <select className="auth-select" required value={txnForm.customer_id}
+                  onChange={e => setTxnForm({...txnForm, customer_id: e.target.value})}>
                   <option value="">-- Select Customer --</option>
                   {leads.map(l => (
                     <option key={l.customer_id} value={l.customer_id}>{l.name} ({l.customer_id})</option>
                   ))}
                 </select>
               </div>
-              
               <div className="form-grid">
                 <div className="auth-field">
                   <label>Transaction Type</label>
-                  <select 
-                    className="auth-select"
-                    value={txnForm.type}
-                    onChange={e => setTxnForm({...txnForm, type: e.target.value})}
-                  >
+                  <select className="auth-select" value={txnForm.type}
+                    onChange={e => setTxnForm({...txnForm, type: e.target.value})}>
                     <option value="SALARY_CREDIT">SALARY_CREDIT</option>
                     <option value="UPI_CREDIT">UPI_CREDIT</option>
                     <option value="UPI_DEBIT">UPI_DEBIT</option>
@@ -1358,43 +1667,30 @@ function App() {
                     <option value="WALLET_TOPUP">WALLET_TOPUP</option>
                   </select>
                 </div>
-                
                 <div className="auth-field">
                   <label>Amount (₹)</label>
-                  <input 
-                    type="number" 
-                    className="auth-input" 
-                    required 
-                    min="1" 
-                    placeholder="e.g. 5000" 
-                    value={txnForm.amount}
-                    onChange={e => setTxnForm({...txnForm, amount: e.target.value})}
-                  />
+                  <input type="number" className="auth-input" required min="1" placeholder="e.g. 5000"
+                    value={txnForm.amount} onChange={e => setTxnForm({...txnForm, amount: e.target.value})} />
                 </div>
-                
                 <div className="auth-field form-full">
                   <label>Counterparty Name</label>
-                  <input 
-                    type="text" 
-                    className="auth-input" 
-                    required 
-                    placeholder="e.g. HDFC Credit Card, Employer Payroll" 
-                    value={txnForm.counterparty}
-                    onChange={e => setTxnForm({...txnForm, counterparty: e.target.value})}
-                  />
+                  <input type="text" className="auth-input" required placeholder="e.g. HDFC Credit Card, Employer Payroll"
+                    value={txnForm.counterparty} onChange={e => setTxnForm({...txnForm, counterparty: e.target.value})} />
                 </div>
               </div>
-              
               <div className="form-actions">
                 <button type="button" className="btn" onClick={() => setShowTxnModal(false)}>Cancel</button>
                 <button type="submit" className="btn primary" disabled={modalFormLoading}>
-                  {modalFormLoading ? 'Logging...' : 'Log Transaction'}
+                  {modalFormLoading ? 'Logging…' : 'Log Transaction'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Toast */}
+      {toast && <Toast msg={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
     </div>
   );
 }

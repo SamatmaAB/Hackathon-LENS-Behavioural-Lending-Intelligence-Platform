@@ -18,6 +18,9 @@ import tempfile
 import hashlib
 import hmac
 import logging
+import os
+import secrets
+import tempfile
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
@@ -30,6 +33,8 @@ try:
 except ImportError:
     import data_gen, db, engine, governance  # type: ignore[no-redef]
 
+
+from backend import data_gen, db, engine
 
 BASE_DIR = os.path.dirname(__file__)
 DEFAULT_DB_PATH = os.path.join(tempfile.gettempdir(), "lens.db") if os.getenv("VERCEL") else os.path.join(BASE_DIR, "lens.db")
@@ -103,21 +108,11 @@ def init_database():
         conn.execute("PRAGMA foreign_keys = ON")
     data_gen.create_schema(conn)
     db.executescript(conn, AUTH_SCHEMA_POSTGRES if db.IS_POSTGRES else AUTH_SCHEMA)
+    user_count = db.scalar(conn, "SELECT COUNT(*) FROM users")
+    if user_count == 0:
+        data_gen.clear_customer_data(conn)
     conn.commit()
     conn.close()
-
-
-@app.on_event("startup")
-def ensure_schema_and_data():
-    db_already_exists = db_exists()
-    init_database()
-    if not db_already_exists:
-        conn = get_conn()
-        customer_count = db.scalar(conn, "SELECT COUNT(*) FROM customers")
-        conn.close()
-        if customer_count == 0:
-            data_gen.build_current_database(n_customers=150, seed=42, db_path=DB_PATH)
-            engine.run_engine(DB_PATH)
 
 
 def hash_password(password: str, salt: Optional[str] = None):
@@ -129,6 +124,47 @@ def hash_password(password: str, salt: Optional[str] = None):
 def verify_password(password: str, salt: str, stored_hash: str):
     _, candidate = hash_password(password, salt)
     return hmac.compare_digest(candidate, stored_hash)
+
+
+def seed_default_users():
+    conn = get_conn()
+    emails = ["admin@idbibank.com", "rm@idbibank.com", "analyst@idbibank.com"]
+    roles = {
+        "admin@idbibank.com": ("LENS Admin", "admin"),
+        "rm@idbibank.com": ("Relationship Manager", "relationship_manager"),
+        "analyst@idbibank.com": ("LENS Analyst", "analyst")
+    }
+    default_pass = "idbi@12345"
+    for email in emails:
+        exists = db.scalar(conn, "SELECT COUNT(*) FROM users WHERE email = ?", (email,))
+        if exists == 0:
+            name, role = roles[email]
+            salt, password_hash = hash_password(default_pass)
+            db.execute(
+                conn,
+                """INSERT INTO users (name, email, role, password_salt, password_hash, created_at)
+                   VALUES (?,?,?,?,?,?)""",
+                (name, email, role, salt, password_hash, datetime.utcnow().isoformat())
+            )
+    conn.commit()
+    conn.close()
+
+
+@app.on_event("startup")
+def ensure_schema_and_data():
+    db_already_exists = db_exists()
+    init_database()
+    seed_default_users()
+    if not db_already_exists:
+        conn = get_conn()
+        customer_count = db.scalar(conn, "SELECT COUNT(*) FROM customers")
+        conn.close()
+        if customer_count == 0:
+            data_gen.build_current_database(n_customers=150, seed=42, db_path=DB_PATH)
+            engine.run_engine(DB_PATH)
+
+
+
 
 
 def public_user(row):
@@ -183,11 +219,22 @@ def require_admin(user=Depends(require_user)):
     return user
 
 
+# ---------------------------------------------------------------------------
+# Request / Response Schemas
+# ---------------------------------------------------------------------------
+
 class RegisterRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=80)
     email: str = Field(..., min_length=5, max_length=120)
     password: str = Field(..., min_length=8, max_length=128)
     role: str = "relationship_manager"
+
+
+class CreateUserRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=80)
+    email: str = Field(..., min_length=5, max_length=120)
+    password: str = Field(..., min_length=8, max_length=128)
+    role: str = Field(..., pattern="^(admin|relationship_manager|analyst)$")
 
 
 class LoginRequest(BaseModel):
@@ -225,11 +272,13 @@ class SegmentStat(BaseModel):
     is_underperforming: bool
     gap_to_best_pp: float
 
+
 class FlaggedSegment(BaseModel):
     segment_name: str
     conversion_rate_pct: float
     gap_to_best_pp: float
     recommendation: str
+
 
 class FairnessResponse(BaseModel):
     segments: List[SegmentStat]
@@ -239,12 +288,14 @@ class FairnessResponse(BaseModel):
     flagged_segments: List[FlaggedSegment]
     recommendation_summary: str
 
+
 class ComplianceStandard(BaseModel):
     status: str
     description: str
     considerations: str
     gaps: List[str]
     recommendations: List[str]
+
 
 class ComplianceResponse(BaseModel):
     compliance_status: str
@@ -254,6 +305,7 @@ class ComplianceResponse(BaseModel):
     recommendations: List[str]
     governance_notes: str
 
+
 class FieldMapping(BaseModel):
     internal_field: str
     sandbox_field: str
@@ -261,16 +313,19 @@ class FieldMapping(BaseModel):
     status: str
     validation_rules: str
 
+
 class MissingMapping(BaseModel):
     internal_field: str
     sandbox_field: str
     reason: str
+
 
 class SandboxMappingResponse(BaseModel):
     mappings: List[FieldMapping]
     missing_mappings: List[MissingMapping]
     validation_notes: str
     schema_version: str
+
 
 class SegmentROIPerformance(BaseModel):
     segment_name: str
@@ -281,6 +336,7 @@ class SegmentROIPerformance(BaseModel):
     expected_loans_disbursed: float
     expected_revenue: float
     roi_pct: float
+
 
 class ROIResponse(BaseModel):
     total_customers: int
@@ -294,6 +350,9 @@ class ROIResponse(BaseModel):
     cost_assumptions: Dict[str, float]
 
 
+# ---------------------------------------------------------------------------
+# Auth Endpoints
+# ---------------------------------------------------------------------------
 
 @app.post("/api/auth/register")
 def register(payload: RegisterRequest):
@@ -361,7 +420,63 @@ def roles():
     return {"roles": sorted(ROLES), "write_roles": sorted(WRITE_ROLES)}
 
 
+# ---------------------------------------------------------------------------
+# Admin Endpoints
+# ---------------------------------------------------------------------------
 
+@app.get("/api/users")
+def list_users(admin: dict = Depends(require_admin)):
+    """Return a list of all registered users (admin only)."""
+    conn = get_conn()
+    rows = db.rows(conn, "SELECT * FROM users")
+    conn.close()
+    return [public_user(row) for row in rows]
+
+
+@app.delete("/api/users/{user_id}")
+def delete_user(user_id: int, admin: dict = Depends(require_admin)):
+    """Delete a user by ID (admin only)."""
+    conn = get_conn()
+    user = db.one(conn, "SELECT * FROM users WHERE user_id=?", (user_id,))
+    if not user:
+        conn.close()
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    db.execute(conn, "DELETE FROM users WHERE user_id=?", (user_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "deleted", "user_id": user_id}
+
+
+@app.post("/api/users")
+def admin_create_user(payload: CreateUserRequest, admin: dict = Depends(require_admin)):
+    email = payload.email.strip().lower()
+    conn = get_conn()
+    salt, password_hash = hash_password(payload.password)
+    try:
+        insert_sql = """INSERT INTO users (name, email, role, password_salt, password_hash, created_at)
+               VALUES (?,?,?,?,?,?)"""
+        if db.IS_POSTGRES:
+            insert_sql += " RETURNING user_id AS id"
+        cursor = db.execute(
+            conn,
+            insert_sql,
+            (payload.name.strip(), email, payload.role, salt, password_hash, datetime.utcnow().isoformat()),
+        )
+        user_id = db.last_insert_id(cursor)
+        conn.commit()
+        user = db.one(conn, "SELECT * FROM users WHERE user_id=?", (user_id,))
+    except Exception as exc:
+        conn.close()
+        if db.is_integrity_error(exc):
+            raise HTTPException(status.HTTP_409_CONFLICT, "Email is already registered")
+        raise
+    conn.close()
+    return public_user(user)
+
+
+# ---------------------------------------------------------------------------
+# Data Generation
+# ---------------------------------------------------------------------------
 
 @app.post("/api/generate")
 def generate(n_customers: int = Query(150, ge=20, le=1000), seed: int = Query(None), user=Depends(require_write_user)):
@@ -371,6 +486,10 @@ def generate(n_customers: int = Query(150, ge=20, le=1000), seed: int = Query(No
     summary = engine.run_engine(DB_PATH)
     return {"customers_generated": n_cust, "transactions_generated": n_txn, **summary}
 
+
+# ---------------------------------------------------------------------------
+# Stats & Leads
+# ---------------------------------------------------------------------------
 
 @app.get("/api/stats")
 def stats(user=Depends(require_user)):
@@ -403,11 +522,13 @@ def stats(user=Depends(require_user)):
     }
 
 
+# ---------------------------------------------------------------------------
+# Customer Endpoints
+# ---------------------------------------------------------------------------
 
 @app.get("/api/customers")
 def list_customers(search: str = None, limit: int = 100, user=Depends(require_user)):
     conn = get_conn()
-    cur = conn.cursor()
     q = "SELECT * FROM customers WHERE 1=1"
     params = []
     if search:
@@ -490,6 +611,9 @@ def create_transaction(payload: TransactionRequest, user=Depends(require_write_u
     return {"ok": True, "txn_id": txn_id}
 
 
+# ---------------------------------------------------------------------------
+# Lead Endpoints
+# ---------------------------------------------------------------------------
 
 @app.get("/api/leads")
 def list_leads(tier: str = None, search: str = None, sort: str = "trust_score",
@@ -555,6 +679,10 @@ def customer_transactions(customer_id: str, user=Depends(require_user)):
     return rows
 
 
+# ---------------------------------------------------------------------------
+# Health
+# ---------------------------------------------------------------------------
+
 @app.get("/api/health")
 def health():
     conn = get_conn()
@@ -563,6 +691,10 @@ def health():
     conn.close()
     return {"status": "ok", "data_ready": customers > 0, "users_registered": users}
 
+
+# ---------------------------------------------------------------------------
+# Governance Endpoints
+# ---------------------------------------------------------------------------
 
 @app.get("/api/governance/fairness", response_model=FairnessResponse)
 def get_fairness_report(user=Depends(require_user)):
