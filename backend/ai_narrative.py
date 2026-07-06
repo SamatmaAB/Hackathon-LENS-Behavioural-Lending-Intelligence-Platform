@@ -1,31 +1,14 @@
 """
 LENS AI Narrative Generation (Feature 1)
 =========================================
-Calls the Anthropic Claude API to generate a human-readable narrative,
+Calls the NVIDIA NIM API to generate a human-readable narrative,
 a draft outreach message, and likely objections + responses for a scored lead.
 
 This sits AFTER the TRUST stage — it does not alter any score.
 """
 import os
 import json
-
-# Lazy import so the module loads even if anthropic is not installed
-_client = None
-
-
-def _get_client():
-    global _client
-    if _client is None:
-        try:
-            from anthropic import Anthropic
-            api_key = os.environ.get("ANTHROPIC_API_KEY")
-            if not api_key:
-                raise RuntimeError("ANTHROPIC_API_KEY environment variable not set")
-            _client = Anthropic(api_key=api_key)
-        except ImportError:
-            raise RuntimeError("anthropic package not installed. Run: pip install anthropic==0.39.0")
-    return _client
-
+import httpx
 
 NARRATIVE_SYSTEM_PROMPT = """\
 You are an assistant embedded in LENS, a bank lending-intelligence platform used by IDBI Bank \
@@ -55,6 +38,13 @@ Rules:
 """
 
 
+def _get_api_key():
+    key = os.environ.get("NVIDIA_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        raise RuntimeError("NVIDIA_API_KEY or ANTHROPIC_API_KEY environment variable not set")
+    return key
+
+
 def generate_lead_narrative(lead_payload: dict) -> dict:
     """
     lead_payload: the same dict returned by GET /api/leads/{customer_id}
@@ -62,7 +52,7 @@ def generate_lead_narrative(lead_payload: dict) -> dict:
 
     Returns {narrative, outreach_draft, objections} or raises RuntimeError.
     """
-    client = _get_client()
+    api_key = _get_api_key()
 
     # Trim payload for token efficiency — keep essential fields only
     slim_payload = {
@@ -77,16 +67,35 @@ def generate_lead_narrative(lead_payload: dict) -> dict:
 
     user_content = json.dumps(slim_payload, default=str)
 
-    response = client.messages.create(
-        model="claude-sonnet-4-5",
-        max_tokens=1200,
-        system=NARRATIVE_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_content}],
-    )
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
 
-    raw_text = "".join(
-        block.text for block in response.content if block.type == "text"
-    )
+    body = {
+        "model": "meta/llama-3.3-70b-instruct",
+        "messages": [
+            {"role": "system", "content": NARRATIVE_SYSTEM_PROMPT},
+            {"role": "user", "content": user_content}
+        ],
+        "temperature": 0.2,
+        "max_tokens": 1024
+    }
+
+    try:
+        response = httpx.post(
+            "https://integrate.api.nvidia.com/v1/chat/completions",
+            headers=headers,
+            json=body,
+            timeout=30.0
+        )
+        if response.status_code != 200:
+            raise RuntimeError(f"NVIDIA NIM API error {response.status_code}: {response.text}")
+        
+        res_data = response.json()
+        raw_text = res_data["choices"][0]["message"]["content"]
+    except Exception as e:
+        raise RuntimeError(f"NVIDIA API request failed: {e}")
 
     # Strip accidental code fences defensively
     cleaned = raw_text.strip()

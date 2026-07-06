@@ -914,7 +914,7 @@ def get_lead_narrative(customer_id: str, user=Depends(require_user)):
     """
     if _gen_narrative is None:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
-                            detail="AI narrative not available: anthropic package not installed")
+                            detail="AI narrative not available")
 
     conn = get_conn()
     cust_row = db.one(conn, "SELECT * FROM customers WHERE customer_id=?", (customer_id,))
@@ -1056,7 +1056,7 @@ def ask_governance(payload: GovernanceAskPayload, user=Depends(require_user)):
 
     if _run_gov_query is None:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
-                            detail="AI query not available: anthropic package not installed")
+                            detail="AI query not available")
 
     question = payload.question.strip()
     if not question:
