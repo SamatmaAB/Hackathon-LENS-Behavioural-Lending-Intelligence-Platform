@@ -903,16 +903,39 @@ def customer_transactions(customer_id: str, user=Depends(require_user)):
 
 @app.get("/api/health")
 def health():
+    import os
+    from backend import ml_predict, db
+    
+    ml_ready = ml_predict._load_artifacts()
+    try:
+        import sklearn  # noqa
+        sentry_ready = True
+    except ImportError:
+        sentry_ready = False
+        
     conn = get_conn()
     users = db.scalar(conn, "SELECT COUNT(*) FROM users")
     customers = db.scalar(conn, "SELECT COUNT(*) FROM customers")
     conn.close()
+    
     with generating_lock:
         generation_status = {
             "is_generating": is_generating,
             "generation_started_at": generation_started_at,
         }
-    return {"status": "ok", "data_ready": customers > 0, "users_registered": users, **generation_status}
+        
+    return {
+        "status": "ok", 
+        "data_ready": customers > 0, 
+        "users_registered": users, 
+        **generation_status,
+        "subsystems": {
+            "rule_engine": True,
+            "ml_loan_type_model": ml_ready,
+            "anomaly_detection_sentry": sentry_ready,
+            "narrative_llm": bool(os.environ.get("NVIDIA_API_KEY") or os.environ.get("GROQ_API_KEY")),
+        }
+    }
 
 
 # ---------------------------------------------------------------------------
