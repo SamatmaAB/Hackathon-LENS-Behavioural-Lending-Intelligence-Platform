@@ -176,12 +176,14 @@ def init_database():
 async def lifespan(app: FastAPI):
     db_already_exists = db_exists()
     init_database()
+    seed_default_users()
     if not db_already_exists:
         conn = get_conn()
         customer_count = db.scalar(conn, "SELECT COUNT(*) FROM customers")
         conn.close()
         if customer_count == 0:
             data_gen.build_current_database(n_customers=150, seed=42, db_path=DB_PATH)
+            engine.run_engine(DB_PATH)
     yield
 
 app.router.lifespan_context = lifespan
