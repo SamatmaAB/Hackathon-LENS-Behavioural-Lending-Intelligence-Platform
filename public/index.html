@@ -2024,6 +2024,23 @@ function GovernanceDashboard({leads, stats, token, user, onUnauthorized}) {
     "AUTO_INTEREST", "EDU_EXPENSE", "MED_EXPENSE", "WEDDING_IND", "BAL_DROP",
     "CC_PAYMENT", "UTIL_BOOST", "GIG_RECURRING", "INVEST_DIP"
   ];
+
+  const triggerMap = {
+    "salary_inflow_clustering": "SALARY_BOOST",
+    "large_outward_transfer": "TXN_ACTIVITY",
+    "emi_burden_increase": "EMI_DEBIT",
+    "recurring_self_transfer": "UPI_SPIKE",
+    "property_related_payment": "REAL_ESTATE",
+    "auto_dealer_payment": "AUTO_INTEREST",
+    "education_fee_payment": "EDU_EXPENSE",
+    "medical_large_expense": "MED_EXPENSE",
+    "wedding_season_spike": "WEDDING_IND",
+    "overdraft_near_miss": "BAL_DROP",
+    "credit_card_full_payment": "CC_PAYMENT",
+    "bill_payment_consistency": "UTIL_BOOST",
+    "multiple_income_sources": "GIG_RECURRING",
+    "wallet_topup_frequency": "INVEST_DIP"
+  };
   
   const coMatrix = useMemo(() => {
     const size = triggerNames.length;
@@ -2031,7 +2048,9 @@ function GovernanceDashboard({leads, stats, token, user, onUnauthorized}) {
     if (!leads) return matrix;
     
     leads.forEach(lead => {
-      const active = new Set(lead.triggers_fired || []);
+      const active = new Set(
+        (lead.triggers_fired || []).map(t => triggerMap[t] || t)
+      );
       for (let i = 0; i < size; i++) {
         for (let j = 0; j < size; j++) {
           if (active.has(triggerNames[i]) && active.has(triggerNames[j])) {
