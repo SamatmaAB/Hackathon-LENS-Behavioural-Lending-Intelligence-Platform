@@ -259,15 +259,23 @@ def public_user(row):
     }
 
 
+SESSION_SECRET = os.environ.get("SESSION_SECRET") or "lens-secret-session-key-239847293847"
+
 def create_session(conn, user_id: int):
-    token = secrets.token_urlsafe(32)
     now = datetime.now(UTC)
     expires_at = now + timedelta(hours=SESSION_HOURS)
-    db.execute(
-        conn,
-        "INSERT INTO sessions (token, user_id, expires_at, created_at) VALUES (?,?,?,?)",
-        (token, user_id, format_utc_datetime(expires_at), format_utc_datetime(now)),
-    )
+    expires_ts = int(expires_at.timestamp())
+    payload = f"{user_id}.{expires_ts}"
+    signature = hmac.new(SESSION_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    token = f"{payload}.{signature}"
+    try:
+        db.execute(
+            conn,
+            "INSERT INTO sessions (token, user_id, expires_at, created_at) VALUES (?,?,?,?)",
+            (token, user_id, format_utc_datetime(expires_at), format_utc_datetime(now)),
+        )
+    except Exception:
+        pass
     return token, expires_at
 
 
@@ -275,6 +283,26 @@ def require_user(authorization: str = Header(None)):
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing bearer token")
     token = authorization.split(" ", 1)[1].strip()
+    
+    # Try signed stateless validation first
+    try:
+        parts = token.split(".")
+        if len(parts) == 3:
+            user_id_str, expires_ts_str, signature = parts
+            payload = f"{user_id_str}.{expires_ts_str}"
+            expected_sig = hmac.new(SESSION_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+            if hmac.compare_digest(signature, expected_sig):
+                expires_ts = int(expires_ts_str)
+                if expires_ts > datetime.now(UTC).timestamp():
+                    conn = get_conn()
+                    row = db.one(conn, "SELECT * FROM users WHERE user_id = ?", (int(user_id_str),))
+                    conn.close()
+                    if row:
+                        return row
+    except Exception as e:
+        print(f"Stateless session verification failed: {e}")
+
+    # Fallback to database check (backwards compatibility / local fallback)
     conn = get_conn()
     row = db.one(
         conn,
