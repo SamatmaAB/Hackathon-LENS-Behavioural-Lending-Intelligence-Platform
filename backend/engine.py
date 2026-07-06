@@ -16,10 +16,14 @@ import statistics
 from collections import defaultdict
 from datetime import datetime, timedelta
 
+<<<<<<< Updated upstream
 try:
     from backend import db
 except ImportError:
     import db
+=======
+from backend import db
+>>>>>>> Stashed changes
 
 # ---------------------------------------------------------------------------
 # PULSE: the 14 behavioural triggers, with their weight in the Intent Score.
@@ -272,6 +276,7 @@ LEAD_THRESHOLD = 45  # Intent Score required to enter the lead pipeline (calibra
                       # so conversion lands near the prototype's benchmarked ~31%)
 
 
+<<<<<<< Updated upstream
 def score_customer(customer, txns=None, conn=None, db_path=None):
     """Scores a single customer independently, returning their intent score, triggers, income,
     loan type, outreach, and trust score, regardless of whether they clear the lead threshold."""
@@ -323,6 +328,8 @@ def score_customer(customer, txns=None, conn=None, db_path=None):
     }
 
 
+=======
+>>>>>>> Stashed changes
 def run_engine(db_path=None):
     """Runs PULSE -> CLARITY -> MATCH -> MOMENT -> TRUST for every customer
     and (re)writes the leads table. Returns summary counters."""

@@ -13,10 +13,14 @@ import random
 import sqlite3
 from datetime import datetime, timedelta
 
+<<<<<<< Updated upstream
 try:
     from backend import db
 except ImportError:
     import db
+=======
+from backend import db
+>>>>>>> Stashed changes
 
 FIRST_NAMES = [
     "Aarav", "Vivaan", "Aditya", "Vihaan", "Arjun", "Sai", "Reyansh", "Ayaan",
