@@ -658,6 +658,16 @@ body{
   .tab-bar{padding:0 16px;}
   .gov-section,.admin-section{padding:20px 16px 60px;}
 }
+
+  @keyframes pulse-skeleton {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+  }
+  .skeleton-box {
+    background: var(--surface-3);
+    animation: pulse-skeleton 1.5s infinite ease-in-out;
+  }
 </style>
 <link rel="stylesheet" href="apple_theme.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -2285,6 +2295,45 @@ function AINarrativeCard({customerId, token}) {
   );
 }
 
+/* ---------- WhatIf Simulator ---------- */
+function WhatIfPanel({ customerId, token }) {
+  const [amount, setAmount] = useState(50000);
+  const [counterparty, setCounterparty] = useState("Lodha Developers");
+  const [result, setResult] = useState(null);
+
+  const runSimulation = async () => {
+    const res = await fetch(`${API_BASE}/api/simulate/what-if`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        customer_id: customerId,
+        hypothetical_transaction: {
+          type: "IMPS", amount: Number(amount), counterparty,
+          timestamp: new Date().toISOString(),
+        },
+      }),
+    });
+    setResult(await res.json());
+  };
+
+  return (
+    <div className="what-if-panel" style={{ marginTop: 20, padding: 16, background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 12 }}>
+      <h4 style={{ marginBottom: 10, color: 'var(--text-hi)' }}>Live What-If Simulator</h4>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+        <input style={{ flex: 1, padding: 8, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-hi)' }} value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount" />
+        <input style={{ flex: 2, padding: 8, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-hi)' }} value={counterparty} onChange={e => setCounterparty(e.target.value)} placeholder="Counterparty" />
+        <button style={{ padding: '8px 16px', background: 'var(--teal)', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }} onClick={runSimulation}>Simulate</button>
+      </div>
+      {result && (
+        <div style={{ fontSize: 13, color: 'var(--text-hi)', marginTop: 10 }}>
+          <p>Intent Score: <strong>{result.before.intent_score} → {result.after.intent_score}</strong></p>
+          {result.newly_fired_triggers.length > 0 && <p style={{ color: 'var(--accent)', marginTop: 4 }}>New triggers: {result.newly_fired_triggers.join(", ")}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- Detail panel ---------- */
 function DetailPanel({customerId, token, onUnauthorized}) {
   const [data, setData] = useState(null);
@@ -2385,8 +2434,8 @@ function DetailPanel({customerId, token, onUnauthorized}) {
           <h2>{customer.name}</h2>
           <div className="detail-sub">{customer.customer_id} · {customer.age} yrs · {customer.employment_type} · {customer.city}, {customer.state}</div>
           <div style={{fontSize: 12.5, color: 'var(--teal)', marginTop: 5, fontWeight: 600}}>⚡ Underwriter Action: {lead.tier_action_label || 'Refer to RM for manual review'}</div>
-          <button className="btn" onClick={() => window.print()} style={{ marginTop: 10, fontSize: 11.5, padding: '6px 12px', height: 'auto', borderColor: 'var(--teal-dim)', color: 'var(--teal)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            🖨️ Print Intelligence Report
+          <button className="btn" onClick={() => window.open(`/api/leads/${customer.customer_id}/report?token=${token}`, '_blank')} style={{ marginTop: 10, fontSize: 11.5, padding: '6px 12px', height: 'auto', borderColor: 'var(--teal-dim)', color: 'var(--teal)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            🖨️ Print Executive Summary
           </button>
         </div>
         <div className="score-ring-wrap">
@@ -2439,6 +2488,29 @@ function DetailPanel({customerId, token, onUnauthorized}) {
       <div className="section-title"><span className="dot"></span>CLARITY — Income Reconstruction</div>
       <TriggerContributionChart triggers={lead.triggers_fired} />
       <TrustScoreWaterfall lead={lead} />
+      
+      <WhatIfPanel customerId={customerId} token={token} />
+
+      {data.next_best_action && (
+        <div style={{ marginTop: 20, padding: 16, background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 12 }}>
+          <h4 style={{ marginBottom: 10, color: 'var(--accent)' }}>MOMENT — Next Best Action Advisory</h4>
+          {data.next_best_action.gap_to_next_tier === 0 ? (
+            <p style={{ color: 'var(--text-lo)', fontSize: 13 }}>{data.next_best_action.message}</p>
+          ) : (
+            <>
+              <p style={{ fontSize: 14, color: 'var(--text-hi)', marginBottom: 8 }}>
+                <strong>Suggested Action:</strong> Look for {data.next_best_action.suggested_signal}
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--text-lo)', marginBottom: 8 }}>
+                <strong>Rationale:</strong> {data.next_best_action.rationale}
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--text-hi)' }}>
+                <strong>Estimated Trust Gain:</strong> +{data.next_best_action.estimated_trust_score_gain} points
+              </p>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="income-panel">
         <div className="income-figure">
@@ -3434,6 +3506,29 @@ function AdminPanel({token, onUnauthorized, showToast}) {
   );
 }
 
+/* ---------- Lead Skeleton ---------- */
+function LeadSkeleton() {
+  return (
+    <div className="lead-card" style={{ cursor: 'default' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+        <div>
+          <div className="skeleton-box" style={{ width: 150, height: 18, marginBottom: 8, borderRadius: 4 }}></div>
+          <div className="skeleton-box" style={{ width: 100, height: 14, borderRadius: 4 }}></div>
+        </div>
+        <div className="skeleton-box" style={{ width: 50, height: 24, borderRadius: 12 }}></div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <div className="skeleton-box" style={{ width: 80, height: 24, borderRadius: 12 }}></div>
+        <div className="skeleton-box" style={{ width: 80, height: 24, borderRadius: 12 }}></div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div className="skeleton-box" style={{ width: 60, height: 14, borderRadius: 4 }}></div>
+        <div className="skeleton-box" style={{ width: 40, height: 14, borderRadius: 4 }}></div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Leads View ---------- */
 function LeadsView({stats, leads, allLeads = [], selected, setSelected, loading, sort, setSort, tierFilter, setTierFilter, search, setSearch, auth, token, onUnauthorized, generating, handleRegenerate, setShowCustomerModal, setShowTxnModal, setModalFormError}) {
   return (
@@ -3452,13 +3547,13 @@ function LeadsView({stats, leads, allLeads = [], selected, setSelected, loading,
           <div className="queue-controls">
             <div className="search-box">
               <IconSearch style={{color:'var(--text-low)'}}/>
-              <input id="lead-search" placeholder="Search by name or customer ID…" value={search} onChange={e=>setSearch(e.target.value)} />
+              <input id="lead-search" placeholder="Search by name or customer ID…" aria-label="Search leads" value={search} onChange={e=>setSearch(e.target.value)} />
             </div>
             <div className="filter-row">
               {['All','Tier 1','Tier 2','Tier 3'].map(t => (
-                <div key={t} id={`filter-${t.toLowerCase().replace(' ','-')}`} className={`chip ${tierFilter===t?'active':''}`} onClick={()=>setTierFilter(t)}>{t}</div>
+                <button key={t} aria-pressed={tierFilter===t} id={`filter-${t.toLowerCase().replace(' ','-')}`} className={`chip ${tierFilter===t?'active':''}`} onClick={()=>setTierFilter(t)} style={{border:'none', cursor:'pointer'}}>{t}</button>
               ))}
-              <select id="sort-select" value={sort} onChange={e=>setSort(e.target.value)}
+              <select aria-label="Sort leads" id="sort-select" value={sort} onChange={e=>setSort(e.target.value)}
                 style={{marginLeft:'auto', background:'var(--surface-2)', color:'var(--text-mid)', border:'1px solid var(--border)', borderRadius:8, fontSize:12, padding:'6px 8px'}}>
                 <option value="trust_score">Sort: Trust Score</option>
                 <option value="intent_score">Sort: Intent Score</option>
@@ -3466,8 +3561,16 @@ function LeadsView({stats, leads, allLeads = [], selected, setSelected, loading,
               </select>
             </div>
           </div>
-          <div className="queue-list">
-            {loading ? <div style={{padding:30, textAlign:'center'}}><div className="spinner" style={{margin:'0 auto'}}></div></div> :
+          <div className="queue-list" role="feed" aria-busy={loading}>
+            {loading ? (
+              <>
+                <LeadSkeleton />
+                <LeadSkeleton />
+                <LeadSkeleton />
+                <LeadSkeleton />
+                <LeadSkeleton />
+              </>
+            ) :
               allLeads.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads yet — click Regenerate &amp; Rescan to populate the console.</div> :
               leads.length === 0 ? <div style={{padding:30, textAlign:'center', color:'var(--text-low)', fontSize:13}}>No leads match this filter.</div> :
               leads.map(l => (

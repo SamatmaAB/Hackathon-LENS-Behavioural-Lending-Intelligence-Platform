@@ -8,10 +8,29 @@ from fastapi.testclient import TestClient
 from backend.app import app
 
 
+import pytest
+from backend import app as app_module
+from backend import db
+
+@pytest.fixture(autouse=True)
+def setup_test_db(tmp_path):
+    test_db = str(tmp_path / "test_lens.db")
+    old_db = os.environ.get("LENS_DB_PATH")
+    os.environ["LENS_DB_PATH"] = test_db
+    app_module.DB_PATH = test_db
+    app_module.init_database()
+    yield test_db
+    if old_db:
+        os.environ["LENS_DB_PATH"] = old_db
+    else:
+        del os.environ["LENS_DB_PATH"]
+
 client = TestClient(app)
 
-
 def _login_admin():
+    client.post("/api/auth/register", json={
+        "name": "Admin", "email": "admin@idbibank.com", "password": "idbi@12345", "role": "RM"
+    })
     r = client.post("/api/auth/login", json={"email": "admin@idbibank.com", "password": "idbi@12345"})
     return r.json()["token"]
 

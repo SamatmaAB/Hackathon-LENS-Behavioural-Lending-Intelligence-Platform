@@ -26,7 +26,7 @@ from datetime import datetime, timedelta, UTC
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query, Header, Depends, status
+from fastapi import FastAPI, HTTPException, Query, Header, Depends, status, UploadFile, File, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -38,9 +38,9 @@ def format_utc_datetime(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%S.%f") + "+00:00"
 
 try:
-    from backend import data_gen, db, engine, governance, geo
+    from backend import data_gen, db, engine, governance, geo, ingest, feedback
 except ImportError:
-    import data_gen, db, engine, governance, geo  # type: ignore[no-redef]
+    import data_gen, db, engine, governance, geo, ingest, feedback  # type: ignore[no-redef]
 
 
 from backend import data_gen, db, engine
@@ -156,6 +156,29 @@ def _migrate_database(conn):
     except Exception:
         pass
 
+    CREATE_OUTCOMES_TABLE = """
+    CREATE TABLE IF NOT EXISTS lead_outcomes (
+        outcome_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_id TEXT NOT NULL,
+        recorded_by INTEGER NOT NULL,
+        outcome TEXT NOT NULL CHECK(outcome IN ('converted', 'contacted_no_response', 'declined', 'not_reachable')),
+        triggers_fired_at_time TEXT NOT NULL,
+        trust_score_at_time REAL NOT NULL,
+        recorded_at TEXT NOT NULL,
+        FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
+        FOREIGN KEY (recorded_by) REFERENCES users(user_id)
+    );
+    """
+    try:
+        db.execute(conn, CREATE_OUTCOMES_TABLE)
+    except Exception as e:
+        # If running on Postgres, AUTOINCREMENT needs to be SERIAL instead. 
+        # But this is a generic try/catch block just in case. Let's fix AUTOINCREMENT vs SERIAL properly if needed.
+        if db.IS_POSTGRES:
+             db.execute(conn, CREATE_OUTCOMES_TABLE.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY"))
+        else:
+             pass
+
 
 def init_database():
     conn = get_conn()
@@ -267,10 +290,15 @@ def create_session(conn, user_id: int):
     return token, expires_at
 
 
-def require_user(authorization: str = Header(None)):
-    if not authorization or not authorization.lower().startswith("bearer "):
+def require_user(authorization: str = Header(None), token_q: str = Query(None, alias="token")):
+    if not authorization and not token_q:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing bearer token")
-    token = authorization.split(" ", 1)[1].strip()
+    if token_q:
+        token = token_q
+    else:
+        if not authorization.lower().startswith("bearer "):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing bearer token")
+        token = authorization.split(" ", 1)[1].strip()
     
     # Try signed stateless validation first
     try:
@@ -884,6 +912,10 @@ def lead_detail(customer_id: str, user=Depends(require_user)):
             lead["income_confidence"] = scored.get("income_confidence")
             lead["repay_score"] = scored.get("repay_score")
 
+            nba_conn = get_conn()
+            result["next_best_action"] = engine.suggest_next_best_action(cust, txns, scored, nba_conn)
+            nba_conn.close()
+
     return result
 
 
@@ -1429,3 +1461,176 @@ def reject_threshold_change(request_id: int, user=Depends(require_admin)):
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
     conn.close()
     return {"ok": True, "status": "REJECTED"}
+
+
+@app.post("/api/customers/{customer_id}/ingest-statement")
+async def ingest_statement(customer_id: str, file: UploadFile = File(...), user=Depends(require_write_user)):
+    """
+    Upload a real (or realistic sample) bank statement CSV. Replaces synthetic
+    transactions for this customer and reruns the full PULSE->TRUST pipeline,
+    so the demo can prove the engine works on genuine data, not just seed=42.
+    """
+    if not file.filename.lower().endswith(".csv"):
+        raise HTTPException(400, "Only CSV statements supported in this version")
+
+    content = await file.read()
+    try:
+        transactions = ingest.parse_csv_statement(content, customer_id)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+    conn = get_conn()
+    db.execute(conn, "DELETE FROM transactions WHERE customer_id=?", (customer_id,))
+    for txn in transactions:
+        db.execute(
+            conn,
+            "INSERT INTO transactions (customer_id, timestamp, type, amount, counterparty) VALUES (?,?,?,?,?)",
+            (txn["customer_id"], txn["timestamp"], txn["type"], txn["amount"], txn["counterparty"]),
+        )
+    conn.commit()
+
+    cust = db.one(conn, "SELECT * FROM customers WHERE customer_id=?", (customer_id,))
+    txns = db.rows(conn, "SELECT * FROM transactions WHERE customer_id=?", (customer_id,))
+    lead = engine.score_customer(cust, txns=txns, conn=conn)
+    conn.close()
+
+    return {
+        "transactions_ingested": len(transactions),
+        "source": "real_statement_upload",
+        "lead_result": lead,
+    }
+
+
+@app.post("/api/leads/{customer_id}/outcome")
+def record_lead_outcome(customer_id: str, outcome: str = Body(..., embed=True), user=Depends(require_write_user)):
+    conn = get_conn()
+    try:
+        feedback.record_outcome(conn, customer_id, user["user_id"], outcome)
+    except ValueError as e:
+        conn.close()
+        raise HTTPException(404, str(e))
+    conn.close()
+    return {"status": "recorded"}
+
+
+@app.get("/api/governance/trigger-precision-report")
+def trigger_precision_report(user=Depends(require_user)):
+    conn = get_conn()
+    report = feedback.generate_trigger_precision_report(conn)
+    conn.close()
+    return report
+
+
+@app.post("/api/simulate/what-if")
+def simulate_what_if(payload: dict = Body(...), user=Depends(require_user)):
+    """
+    payload = {
+      "customer_id": "CUST10001",
+      "hypothetical_transaction": {
+        "type": "EMI_DEBIT", "amount": 25000, "counterparty": "Lodha Developers",
+        "timestamp": "2026-07-07T10:00:00"
+      }
+    }
+    Returns before/after Intent Score, Trust Score, and tier — without persisting anything.
+    """
+    conn = get_conn()
+    customer_id = payload["customer_id"]
+    cust = db.one(conn, "SELECT * FROM customers WHERE customer_id=?", (customer_id,))
+    if not cust:
+        conn.close()
+        raise HTTPException(404, "Customer not found")
+
+    existing_txns = db.rows(conn, "SELECT * FROM transactions WHERE customer_id=?", (customer_id,))
+    before = engine.score_customer(cust, txns=existing_txns, conn=conn)
+
+    hypothetical_txns = existing_txns + [payload["hypothetical_transaction"]]
+    after = engine.score_customer(cust, txns=hypothetical_txns, conn=conn)
+    conn.close()
+
+    return {
+        "customer_id": customer_id,
+        "before": {"intent_score": before["intent_score"] if before else 0,
+                   "trust_score": before["trust_score"] if before else 0,
+                   "tier": before["tier"] if before else "Not a lead"},
+        "after": {"intent_score": after["intent_score"], "trust_score": after["trust_score"], "tier": after["tier"]},
+        "delta_intent": round((after["intent_score"]) - (before["intent_score"] if before else 0), 1),
+        "newly_fired_triggers": sorted(set(after["triggers_fired"]) -
+                                       set((before["triggers_fired"] if before else []))),
+    }
+
+
+from fastapi.responses import HTMLResponse
+
+@app.get("/api/leads/{customer_id}/report", response_class=HTMLResponse)
+def get_lead_report(customer_id: str, user=Depends(require_user)):
+    """Returns a styled HTML string suitable for window.print() as a PDF."""
+    try:
+        data = lead_detail(customer_id, user)
+    except HTTPException as e:
+        raise e
+    
+    lead = data["lead"]
+    customer = data["customer"]
+    
+    html = f"""
+    <html>
+    <head>
+        <title>LENS Executive Summary - {customer['name']}</title>
+        <style>
+            body {{ font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333; line-height: 1.6; padding: 40px; }}
+            h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }}
+            .header {{ display: flex; justify-content: space-between; margin-bottom: 30px; }}
+            .metric {{ background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; }}
+            .metric-title {{ font-size: 12px; text-transform: uppercase; color: #7f8c8d; font-weight: bold; }}
+            .metric-value {{ font-size: 24px; color: #2c3e50; font-weight: bold; }}
+            .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+            th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }}
+            th {{ background-color: #f8f9fa; }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <div>
+                <h1>LENS Executive Summary</h1>
+                <p><strong>Customer:</strong> {customer['name']} ({customer['customer_id']})</p>
+                <p><strong>Date:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+            </div>
+            <div>
+                <h2>{lead['tier']}</h2>
+                <p>{lead.get('tier_action_label', '')}</p>
+            </div>
+        </div>
+        
+        <div class="grid">
+            <div class="metric">
+                <div class="metric-title">Predicted Loan Type</div>
+                <div class="metric-value">{lead['predicted_loan_type']}</div>
+            </div>
+            <div class="metric">
+                <div class="metric-title">Trust Score</div>
+                <div class="metric-value">{lead['trust_score']}/100</div>
+            </div>
+            <div class="metric">
+                <div class="metric-title">Intent Score</div>
+                <div class="metric-value">{lead['intent_score']}/100</div>
+            </div>
+            <div class="metric">
+                <div class="metric-title">Est. Capacity</div>
+                <div class="metric-value">₹{int(lead.get('capacity', {{}}).get('recommended_loan_amount', 0)):,}</div>
+            </div>
+        </div>
+        
+        <h3>Behavioural Triggers Fired</h3>
+        <table>
+            <tr><th>Trigger</th><th>Weight</th><th>Confidence</th></tr>
+            {"".join(f"<tr><td>{t['label']}</td><td>{t['weight']}</td><td>{t['classification_confidence']*100:.0f}%</td></tr>" for t in lead['triggers_fired'])}
+        </table>
+        
+        <script>
+            window.onload = function() {{ window.print(); }}
+        </script>
+    </body>
+    </html>
+    """
+    return html

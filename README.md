@@ -1076,6 +1076,9 @@ Sliding notification system (bottom-right) for all mutating operations:
 | Create user accounts | ❌ | ❌ | ✅ |
 | Delete user accounts | ❌ | ❌ | ✅ |
 | View all registered users | ❌ | ❌ | ✅ |
+| Generate ML predictions (XGBoost/SHAP) | ✅ | ✅ | ✅ |
+| Run Anomaly Detection (Isolation Forest) | ✅ | ✅ | ✅ |
+| Generate AI Narratives (NVIDIA NIM) | ✅ | ✅ | ✅ |
 
 The frontend enforces these restrictions in the UI (e.g., "Regenerate & Rescan" button is disabled for analysts), but the **API enforces them independently** via the `require_write_user` and `require_admin` FastAPI dependency functions — client-side enforcement alone is never sufficient.
 

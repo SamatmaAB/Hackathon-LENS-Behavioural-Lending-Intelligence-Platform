@@ -626,3 +626,40 @@ def run_engine(db_path=None):
     }
     conn.close()
     return summary
+
+
+def suggest_next_best_action(customer: dict, txns: list, current_result: dict, conn) -> dict:
+    """
+    For leads just below a tier boundary, suggests which single realistic
+    behavioural signal would move them up. Read-only advisory — never
+    changes any stored score.
+    """
+    trust_score = current_result["trust_score"]
+    if trust_score >= 70:
+        return {"message": "Already Tier 1 — no action needed.", "gap_to_next_tier": 0}
+
+    next_tier_threshold = 70 if trust_score < 70 else None
+    gap = round(next_tier_threshold - trust_score, 1) if next_tier_threshold else 0
+
+    fired = set((current_result.get("triggers_fired") or "").split(","))
+    candidates = []
+    if "credit_card_full_payment" not in fired:
+        candidates.append(("credit_card_full_payment", "2 on-time full credit card payments", 25 * 0.3))
+    if "bill_payment_consistency" not in fired:
+        candidates.append(("bill_payment_consistency", "3 consistent utility bill payments", 15 * 0.3))
+    if "recurring_self_transfer" not in fired:
+        candidates.append(("recurring_self_transfer", "2 recurring self-transfers (savings discipline)", 10 * 0.3))
+
+    candidates.sort(key=lambda c: c[2], reverse=True)
+    best = candidates[0] if candidates else None
+
+    return {
+        "gap_to_next_tier": gap,
+        "suggested_signal": best[1] if best else None,
+        "estimated_trust_score_gain": round(best[2], 1) if best else 0,
+        "rationale": (
+            f"This customer is {gap} points below the Tier 1 threshold. "
+            f"Observing '{best[1]}' would raise their Repayment Score component of TRUST."
+            if best else "No clear single-signal path identified — refer for manual review."
+        ),
+    }
