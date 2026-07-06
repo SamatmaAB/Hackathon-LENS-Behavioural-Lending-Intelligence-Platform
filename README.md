@@ -1432,4 +1432,11 @@ The `noise_level` parameter (0.0–1.0, default 0.20) controls what proportion o
 
 ---
 
+## Changelog & Recent Updates
+
+* **FOIR Bands Chart Refactor (HTML/CSS Standardization):** Rebuilt the FOIR Underwriting Bands chart in pure HTML/CSS, removing the older SVG implementation. The chart now uses standard `income-bar-row` flex layouts to guarantee perfect vertical text alignment across all browsers and font stacks.
+* **Governance Matrix Mapping:** Added a display code mapping table to the Governance Dashboard, translating internal trigger keys (e.g. `salary_inflow_clustering`) into frontend UI codes (e.g. `SALARY_BOOST`) so the Trigger Co-occurrence Matrix properly populates without blank axes.
+
+---
+
 *Built with ❤️ for IDBI Innovate by Team SamatmaAB*
