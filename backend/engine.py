@@ -16,7 +16,10 @@ import statistics
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from backend import db
+try:
+    from backend import db
+except ImportError:
+    import db  # type: ignore[no-redef]
 
 # ---------------------------------------------------------------------------
 # PULSE: the 14 behavioural triggers, with their weight in the Intent Score.

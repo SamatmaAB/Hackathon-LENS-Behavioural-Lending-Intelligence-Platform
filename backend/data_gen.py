@@ -13,7 +13,10 @@ import random
 import sqlite3
 from datetime import datetime, timedelta
 
-from backend import db
+try:
+    from backend import db
+except ImportError:
+    import db  # type: ignore[no-redef]
 
 FIRST_NAMES = [
     "Aarav", "Vivaan", "Aditya", "Vihaan", "Arjun", "Sai", "Reyansh", "Ayaan",
@@ -388,8 +391,8 @@ def insert_dataset(conn, customers, transactions):
     )
 
 
-def build_current_database(n_customers=150, seed=42):
-    conn = db.connect()
+def build_current_database(n_customers=150, seed=42, db_path=None):
+    conn = db.connect(db_path)
     create_schema(conn)
     clear_customer_data(conn)
     customers, transactions = generate_dataset(n_customers, seed=seed)

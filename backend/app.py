@@ -116,7 +116,7 @@ def ensure_schema_and_data():
         customer_count = db.scalar(conn, "SELECT COUNT(*) FROM customers")
         conn.close()
         if customer_count == 0:
-            data_gen.build_current_database(n_customers=150, seed=42)
+            data_gen.build_current_database(n_customers=150, seed=42, db_path=DB_PATH)
             engine.run_engine(DB_PATH)
 
 
@@ -366,7 +366,7 @@ def roles():
 @app.post("/api/generate")
 def generate(n_customers: int = Query(150, ge=20, le=1000), seed: int = Query(None), user=Depends(require_write_user)):
     seed = seed if seed is not None else datetime.now().microsecond
-    n_cust, n_txn = data_gen.build_current_database(n_customers=n_customers, seed=seed)
+    n_cust, n_txn = data_gen.build_current_database(n_customers=n_customers, seed=seed, db_path=DB_PATH)
     init_database()
     summary = engine.run_engine(DB_PATH)
     return {"customers_generated": n_cust, "transactions_generated": n_txn, **summary}
