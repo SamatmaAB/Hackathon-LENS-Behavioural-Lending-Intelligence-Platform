@@ -1075,11 +1075,11 @@ function FoirBandChart({ bands, appliedFoir, loanType }) {
               <div style={{ width: 120, fontSize: 12.5, fontWeight: isActive ? '700' : '500', color: isActive ? 'var(--text-hi)' : 'var(--text-mid)', flexShrink: 0 }}>
                 {b.loanType}
               </div>
-              <div style={{ flex: 1, height: 22, background: 'var(--surface-2)', border: '1px solid var(--border-soft)', borderRadius: 6, position: 'relative' }}>
+              <div style={{ flex: 1, height: 22, position: 'relative' }}>
                 <div style={{ position: 'absolute', right: `calc(100% - ${leftPct}% + 6px)`, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: 'var(--text-low)', fontFamily: 'var(--font-mono)' }}>
                   {b.min}%
                 </div>
-                <div style={{ position: 'absolute', left: `${leftPct}%`, width: `${widthPct}%`, height: '100%', background: isActive ? 'var(--teal)' : 'var(--border)', opacity: isActive ? 0.95 : 0.25, borderRadius: 5 }}></div>
+                <div style={{ position: 'absolute', left: `${leftPct}%`, width: `${widthPct}%`, height: '100%', background: isActive ? 'var(--teal)' : 'var(--border)', opacity: isActive ? 0.9 : 0.4, borderRadius: 4 }}></div>
                 <div style={{ position: 'absolute', left: `calc(${leftPct + widthPct}% + 6px)`, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: 'var(--text-low)', fontFamily: 'var(--font-mono)' }}>
                   {b.max}%
                 </div>
