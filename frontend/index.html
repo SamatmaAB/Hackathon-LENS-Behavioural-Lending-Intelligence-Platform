@@ -369,6 +369,47 @@ body{
   }
 }
 
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 180px 1fr;
+  gap: 12px 24px;
+  align-items: center;
+}
+.compare-head {
+  font-family: var(--font-display);
+  font-size: 15px;
+  text-align: center;
+  padding: 12px;
+}
+.compare-head.center {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.compare-cell {
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 10px 16px;
+  text-align: center;
+  font-size: 13.5px;
+  transition: all 0.2s ease;
+}
+.compare-cell.win {
+  border-color: var(--teal-dim);
+  background: rgba(22, 194, 174, 0.08);
+  color: var(--teal);
+  font-weight: 600;
+}
+.compare-label {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-low);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
 /* ---------- Auth UI ---------- */
 .auth-container {
   display: flex;
@@ -1100,33 +1141,11 @@ function CompareLeadsWorkspace({ leads, token, onUnauthorized }) {
 
             return (
               <React.Fragment key={i}>
-                <div 
-                  className={`compare-cell ${w === "A" ? "win" : ""}`} 
-                  style={{ 
-                    padding: '12px 16px', 
-                    borderRadius: 8, 
-                    textAlign: 'center', 
-                    fontSize: 13,
-                    background: w === "A" ? 'rgba(22, 194, 174, 0.08)' : 'transparent',
-                    color: w === "A" ? 'var(--teal)' : 'var(--text-hi)',
-                    fontWeight: w === "A" ? 'bold' : 'normal'
-                  }}
-                >
+                <div className={`compare-cell ${w === "A" ? "win" : ""}`}>
                   {formatVal(valA)}
                 </div>
-                <div className="compare-label" style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px' }}>{label}</div>
-                <div 
-                  className={`compare-cell ${w === "B" ? "win" : ""}`} 
-                  style={{ 
-                    padding: '12px 16px', 
-                    borderRadius: 8, 
-                    textAlign: 'center', 
-                    fontSize: 13,
-                    background: w === "B" ? 'rgba(22, 194, 174, 0.08)' : 'transparent',
-                    color: w === "B" ? 'var(--teal)' : 'var(--text-hi)',
-                    fontWeight: w === "B" ? 'bold' : 'normal'
-                  }}
-                >
+                <div className="compare-label">{label}</div>
+                <div className={`compare-cell ${w === "B" ? "win" : ""}`}>
                   {formatVal(valB)}
                 </div>
               </React.Fragment>
