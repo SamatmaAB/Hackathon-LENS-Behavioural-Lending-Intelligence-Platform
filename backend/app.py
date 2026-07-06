@@ -548,7 +548,7 @@ def create_transaction(payload: TransactionRequest, user=Depends(require_write_u
 def list_leads(tier: str = None, search: str = None, sort: str = "trust_score",
                limit: int = 100, user=Depends(require_user)):
     conn = get_conn()
-    q = """SELECT l.*, c.name, c.age, c.city, c.state, c.employment_type, c.declared_income
+    q = """SELECT l.*, c.name, c.age, c.city, c.state, c.employment_type, c.declared_income, c.true_loan_type
            FROM leads l JOIN customers c ON c.customer_id = l.customer_id WHERE 1=1"""
     params = []
     if tier:

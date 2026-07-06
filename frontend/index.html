@@ -817,6 +817,256 @@ function RoiDonut({ assessmentCost, outreachCost, netProfit }) {
   );
 }
 
+}
+
+function ArchitectureFlow() {
+  const stages = [
+    { name: "PULSE", desc: "14 behavioural triggers", color: "var(--indigo)" },
+    { name: "CLARITY", desc: "Income reconstruction", color: "var(--teal)" },
+    { name: "CAPACITY", desc: "DTI & FOIR eligibility", color: "var(--amber)" },
+    { name: "MATCH", desc: "Loan type prediction", color: "var(--violet)" },
+    { name: "MOMENT", desc: "Outreach timing", color: "var(--teal-dim)" },
+    { name: "TRUST SCORE", desc: "Tier 1/2/3", color: "var(--red)" },
+  ];
+  const boxW = 120, boxH = 65, gap = 20, w = stages.length * (boxW + gap);
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border-soft)', borderRadius: 16, padding: '18px 24px', marginBottom: 24 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 12 }}>LENS Behavioural Lending System Architecture Flow</div>
+      <svg viewBox={`0 0 ${w} 100`} width="100%" height="80">
+        {stages.map((s, i) => {
+          const x = i * (boxW + gap) + 10;
+          return (
+            <g key={s.name}>
+              <rect x={x} y="15" width={boxW} height={boxH} rx="10" fill={s.color} opacity="0.12" stroke={s.color} strokeWidth="1.5" />
+              <text x={x + boxW / 2} y="40" textAnchor="middle" fontSize="12" fontWeight="700" fill={s.color} fontFamily="var(--font-display)">{s.name}</text>
+              <text x={x + boxW / 2} y="58" textAnchor="middle" fontSize="8" fill="var(--text-mid)" fontFamily="var(--font-body)">{s.desc}</text>
+              {i < stages.length - 1 && (
+                <path d={`M${x + boxW},45 L${x + boxW + gap - 6},45`} stroke="var(--border)" strokeWidth="2" markerEnd="url(#arrow)" />
+              )}
+            </g>
+          );
+        })}
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="var(--text-low)" />
+          </marker>
+        </defs>
+      </svg>
+    </div>
+  );
+}
+
+function PipelineFunnel({ stages }) {
+  if (!stages || stages.length === 0) return null;
+  const w = 500, h = 260, barH = 46, gap = 12;
+  const max = stages[0].value || 1;
+
+  return (
+    <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 12 }}>Lead Generation & Conversion Funnel</div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
+        {stages.map((s, i) => {
+          const widthPct = s.value / max;
+          const barW = widthPct * (w - 160);
+          const x = (w - barW) / 2;
+          const y = i * (barH + gap) + 10;
+          const color = ["var(--indigo)", "var(--teal)", "var(--teal-dim)", "var(--amber)"][i % 4];
+          return (
+            <g key={s.label}>
+              <path
+                d={`M${x},${y} L${x + barW},${y} L${x + barW - 14},${y + barH} L${x + 14},${y + barH} Z`}
+                fill={color} opacity="0.85"
+              />
+              <text x={w / 2} y={y + barH / 2 + 4} textAnchor="middle" fontSize="13" fontWeight="700" fill="#fff" fontFamily="var(--font-display)">
+                {s.value}
+              </text>
+              <text x={w / 2} y={y - 4} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--text-mid)" fontFamily="var(--font-body)">{s.label}</text>
+              {i > 0 && (
+                <text x={w - 60} y={y + barH / 2 + 4} fontSize="11" fill="var(--text-low)" fontWeight="bold" fontFamily="var(--font-mono)">
+                  {Math.round((s.value / (stages[i - 1].value || 1)) * 100)}%
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function ConfusionMatrixHeatmap({ matrix, labels }) {
+  if (!matrix || matrix.length === 0) return null;
+  const max = Math.max(...matrix.flat(), 1);
+  const cell = 54, pad = 90;
+  const size = pad + cell * labels.length + 20;
+
+  return (
+    <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '20px', marginTop: 15 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 15 }}>Confusion Matrix Heatmap</div>
+      <svg viewBox={`0 0 ${size} ${size}`} width="100%" height="100%">
+        <text x={pad + (cell * labels.length) / 2} y="18" textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--text-hi)" fontFamily="var(--font-display)">
+          Predicted →
+        </text>
+        <text x="18" y={pad + (cell * labels.length) / 2} fontSize="11" fontWeight="700" fill="var(--text-hi)" fontFamily="var(--font-display)"
+              transform={`rotate(-90 18 ${pad + (cell * labels.length) / 2})`}>
+          Actual →
+        </text>
+        {labels.map((l, j) => (
+          <text key={"c" + j} x={pad + j * cell + cell / 2} y={pad - 8} fontSize="9" fontWeight="600" fill="var(--text-mid)" textAnchor="middle" fontFamily="var(--font-body)">{l}</text>
+        ))}
+        {labels.map((l, i) => (
+          <text key={"r" + i} x={pad - 8} y={pad + i * cell + cell / 2 + 4} fontSize="9" fontWeight="600" fill="var(--text-mid)" textAnchor="end" fontFamily="var(--font-body)">{l}</text>
+        ))}
+        {matrix.map((row, i) => row.map((v, j) => {
+          const intensity = v / max;
+          const isDiagonal = i === j;
+          const fill = isDiagonal
+            ? `rgba(22,194,174,${0.15 + intensity * 0.85})`
+            : `rgba(229,72,77,${0.1 + intensity * 0.6})`;
+          return (
+            <g key={`${i}-${j}`}>
+              <rect x={pad + j * cell} y={pad + i * cell} width={cell - 2} height={cell - 2} fill={fill} rx="4" />
+              <text x={pad + j * cell + cell / 2} y={pad + i * cell + cell / 2 + 4}
+                    textAnchor="middle" fontSize="12" fontWeight="700" fill={intensity > 0.5 ? "#fff" : "var(--text-hi)"} fontFamily="var(--font-mono)">
+                {v}
+              </text>
+            </g>
+          );
+        }))}
+      </svg>
+    </div>
+  );
+}
+
+function CapacityWaterfall({ steps }) {
+  if (!steps || steps.length === 0) return null;
+  const w = 640, h = 260, barW = 80, gap = 20;
+  const maxVal = Math.max(...steps.map(s => Math.abs(s.value)), steps[0].value, 1);
+  const scale = (h - 70) / maxVal;
+  let running = 0;
+
+  const colorFor = (type) =>
+    type === "decrease" ? "var(--red)" : type === "start" || type === "subtotal" ? "var(--indigo)" : "var(--teal)";
+
+  return (
+    <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginBottom: 24, marginTop: 15 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 12 }}>Repayment Capacity Waterfall (monthly deductions)</div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
+        <line x1="0" y1={h - 30} x2={w} y2={h - 30} stroke="var(--border-soft)" strokeWidth="1.5" />
+        {steps.map((s, i) => {
+          const x = i * (barW + gap) + 10;
+          let barTop, barHeight;
+          if (s.type === "start" || s.type === "subtotal" || s.type === "end") {
+            barHeight = Math.abs(s.value) * scale;
+            barTop = h - 30 - barHeight;
+            running = s.value;
+          } else {
+            barHeight = Math.abs(s.value) * scale;
+            barTop = h - 30 - (running * scale);
+            running += s.value;
+          }
+          return (
+            <g key={i}>
+              <rect x={x} y={barTop} width={barW} height={Math.max(2, barHeight)} fill={colorFor(s.type)} opacity="0.85" rx="3" />
+              <text x={x + barW / 2} y={barTop - 6} textAnchor="middle" fontSize="9" fontWeight="700" fill="var(--text-hi)" fontFamily="var(--font-mono)">
+                {s.value < 0 ? "-" : ""}₹{Math.round(Math.abs(s.value)).toLocaleString('en-IN')}
+              </text>
+              <text x={x + barW / 2} y={h - 14} textAnchor="middle" fontSize="9" fill="var(--text-mid)" fontFamily="var(--font-body)">
+                {s.label}
+              </text>
+              {i < steps.length - 1 && (
+                <line x1={x + barW} y1={barTop} x2={x + barW + gap} y2={barTop}
+                      stroke="var(--text-low)" strokeDasharray="2,2" />
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function FoirBandChart({ bands, appliedFoir, loanType }) {
+  if (!bands) return null;
+  const w = 500, h = 200, barH = 30, gap = 22, pad = 130;
+  const scale = (w - pad - 20) / 60; // 0-60% FOIR range
+
+  return (
+    <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginBottom: 24, marginTop: 15 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 12 }}>FOIR Underwriting Bands & Applied Interpolation</div>
+      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h}>
+        {bands.map((b, i) => {
+          const y = i * (barH + gap) + 15;
+          const isActive = b.loanType === loanType;
+          return (
+            <g key={b.loanType}>
+              <text x="0" y={y + barH / 2 + 4} fontSize="11" fontWeight={isActive ? "700" : "400"} fill="var(--text-hi)" fontFamily="var(--font-body)">
+                {b.loanType}
+              </text>
+              <rect x={pad + b.min * scale} y={y} width={(b.max - b.min) * scale} height={barH}
+                    fill={isActive ? "var(--teal)" : "var(--border)"} opacity={isActive ? 0.9 : 0.4} rx="4" />
+              <text x={pad + b.min * scale - 4} y={y + barH / 2 + 4} fontSize="9" textAnchor="end" fill="var(--text-low)" fontFamily="var(--font-mono)">
+                {b.min}%
+              </text>
+              <text x={pad + b.max * scale + 4} y={y + barH / 2 + 4} fontSize="9" fill="var(--text-low)" fontFamily="var(--font-mono)">
+                {b.max}%
+              </text>
+              {isActive && (
+                <>
+                  <line x1={pad + appliedFoir * scale} y1={y - 6} x2={pad + appliedFoir * scale} y2={y + barH + 6}
+                        stroke="var(--red)" strokeWidth="2.5" />
+                  <text x={pad + appliedFoir * scale} y={y - 10} fontSize="10" fill="var(--red)" textAnchor="middle" fontWeight="700" fontFamily="var(--font-display)">
+                    {appliedFoir}% applied
+                  </text>
+                </>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function TriggerCooccurrenceMatrix({ triggerNames, coMatrix }) {
+  if (!triggerNames || !coMatrix || coMatrix.length === 0) return null;
+  const n = triggerNames.length;
+  const cell = 22, pad = 120;
+  const size = pad + cell * n + 20;
+  const max = Math.max(...coMatrix.flat().filter((_, idx) => idx % (n + 1) !== 0), 1);
+
+  return (
+    <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '20px', marginTop: 15 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 15 }}>Trigger Co-occurrence Matrix (14 categories)</div>
+      <svg viewBox={`0 0 ${size} ${size}`} width="100%" height="100%">
+        {triggerNames.map((name, i) => (
+          <text key={"col" + i} x={pad + i * cell + cell / 2} y={pad - 6} fontSize="7" fill="var(--text-mid)" fontWeight="600"
+                textAnchor="start" transform={`rotate(-45 ${pad + i * cell + cell / 2} ${pad - 6})`} fontFamily="var(--font-body)">
+            {name}
+          </text>
+        ))}
+        {triggerNames.map((name, i) => (
+          <text key={"row" + i} x={pad - 8} y={pad + i * cell + cell / 2 + 3} fontSize="7.5" fill="var(--text-mid)" fontWeight="600" textAnchor="end" fontFamily="var(--font-body)">
+            {name}
+          </text>
+        ))}
+        {coMatrix.map((row, i) => row.map((v, j) => {
+          if (i === j) return (
+            <rect key={`${i}-${j}`} x={pad + j * cell} y={pad + i * cell} width={cell - 1} height={cell - 1} fill="var(--border-soft)" rx="2" />
+          );
+          const intensity = v / max;
+          const fill = `rgba(8, 145, 178, ${intensity})`;
+          return (
+            <rect key={`${i}-${j}`} x={pad + j * cell} y={pad + i * cell} width={cell - 1} height={cell - 1}
+                  fill={fill} rx="2" title={`${v} overlaps`} />
+          );
+        }))}
+      </svg>
+    </div>
+  );
+}
+
 function TransactionSpikeChart({ dailyVolumes, triggerDays }) {
   if (!dailyVolumes || dailyVolumes.length === 0) return null;
   const w = 600, h = 140, pad = 20;
@@ -1325,6 +1575,27 @@ function DetailPanel({customerId, token, onUnauthorized}) {
     return { dailyVolumes: vols, triggerDays: tDays };
   }, [data]);
 
+  const waterfallSteps = useMemo(() => {
+    if (!lead || !lead.capacity) return [];
+    const cap = lead.capacity;
+    const utilities = -(cap.reconstructed_income - cap.existing_emi_monthly - cap.disposable_income);
+    return [
+      { label: "Reconstructed Income", value: cap.reconstructed_income, type: "start" },
+      { label: "Existing EMIs", value: -cap.existing_emi_monthly, type: "decrease" },
+      { label: "Recurring Utilities", value: Number(utilities.toFixed(2)), type: "decrease" },
+      { label: "Disposable Income", value: cap.disposable_income, type: "subtotal" },
+      { label: "Safe EMI Ceiling", value: -cap.safe_emi_ceiling, type: "decrease" },
+      { label: "Eligible Principal", value: cap.recommended_eligible_amount, type: "end" }
+    ];
+  }, [lead]);
+
+  const foirBands = useMemo(() => [
+    { loanType: "Personal Loan", min: 40, max: 50 },
+    { loanType: "Auto Loan", min: 45, max: 55 },
+    { loanType: "Home Loan", min: 50, max: 60 },
+    { loanType: "Mortgage Loan", min: 50, max: 55 }
+  ], []);
+
   if (!customerId) {
     return (
       <div className="empty-state">
@@ -1515,6 +1786,9 @@ function DetailPanel({customerId, token, onUnauthorized}) {
           <div style={{fontSize:11, color:'var(--text-low)', fontStyle:'italic', width:'100%'}}>
             * Assumes Personal 13%, Auto 9.5%, Home 8.5%, Mortgage 9% p.a. — RM should verify against current rate card. Applied FOIR: {(lead.capacity.foir_ratio_applied * 100).toFixed(1)}%. DTI: {(lead.capacity.dti_ratio * 100).toFixed(1)}%.
           </div>
+
+          <CapacityWaterfall steps={waterfallSteps} />
+          <FoirBandChart bands={foirBands} appliedFoir={Math.round(lead.capacity.foir_ratio_applied * 100)} loanType={normalize_loan_type(lead.capacity.recommended_loan_type)} />
         </div>
       ) : (
         <div style={{color:'var(--text-low)', fontSize:12.5, fontStyle:'italic'}}>Capacity details unavailable.</div>
@@ -1553,7 +1827,7 @@ function DetailPanel({customerId, token, onUnauthorized}) {
 
 
 /* ---------- Governance Dashboard Component ---------- */
-function GovernanceDashboard({token, onUnauthorized}) {
+function GovernanceDashboard({leads, stats, token, onUnauthorized}) {
   const [subTab, setSubTab] = useState('evaluation'); // 'evaluation', 'fairness', 'compliance', 'sandbox', 'roi'
   const [evalData, setEvalData] = useState(null);
   const [fairnessData, setFairnessData] = useState(null);
@@ -1562,6 +1836,50 @@ function GovernanceDashboard({token, onUnauthorized}) {
   const [roiData, setRoiData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const classes = ["None", "Home Loan", "Auto Loan", "Personal Loan", "Mortgage"];
+  const matrixArray = useMemo(() => {
+    if (!evalData || !evalData.confusion_matrix) return Array.from({length: 5}, () => Array(5).fill(0));
+    return classes.map(actual => 
+      classes.map(predicted => (evalData.confusion_matrix[actual]?.[predicted] || 0))
+    );
+  }, [evalData]);
+
+  const triggerNames = [
+    "SALARY_BOOST", "TXN_ACTIVITY", "EMI_DEBIT", "UPI_SPIKE", "REAL_ESTATE",
+    "AUTO_INTEREST", "EDU_EXPENSE", "MED_EXPENSE", "WEDDING_IND", "BAL_DROP",
+    "CC_PAYMENT", "UTIL_BOOST", "GIG_RECURRING", "INVEST_DIP"
+  ];
+  
+  const coMatrix = useMemo(() => {
+    const size = triggerNames.length;
+    const matrix = Array.from({ length: size }, () => Array(size).fill(0));
+    if (!leads) return matrix;
+    
+    leads.forEach(lead => {
+      const active = new Set(lead.triggers_fired || []);
+      for (let i = 0; i < size; i++) {
+        for (let j = 0; j < size; j++) {
+          if (active.has(triggerNames[i]) && active.has(triggerNames[j])) {
+            matrix[i][j] += 1;
+          }
+        }
+      }
+    });
+    return matrix;
+  }, [leads]);
+
+  const funnelStages = useMemo(() => {
+    if (!stats || !leads) return [];
+    const t1Leads = leads.filter(l => l.tier === 'Tier 1').length;
+    const projectedConversions = Math.round(leads.length * 0.15);
+    return [
+      { label: "Total Customers Scanned", value: stats.total_customers },
+      { label: "Flagged Leads (Trigger Cleared)", value: leads.length },
+      { label: "Tier 1 (High Trust Leads)", value: t1Leads },
+      { label: "Projected Conversions (15% Yield)", value: projectedConversions }
+    ];
+  }, [stats, leads]);
 
   const fetchSubData = useCallback((tab) => {
     if (!token) return;
@@ -1696,8 +2014,12 @@ function GovernanceDashboard({token, onUnauthorized}) {
                     })}
                   </tbody>
                 </table>
-              </div>
             </div>
+          </div>
+
+          <div style={{display: 'grid', gridTemplateColumns: '1.2fr 1.1fr', gap: 24, marginTop: 28}}>
+            <ConfusionMatrixHeatmap matrix={matrixArray} labels={classes} />
+            <TriggerCooccurrenceMatrix triggerNames={triggerNames} coMatrix={coMatrix} />
           </div>
         </div>
       );
@@ -1911,7 +2233,8 @@ function GovernanceDashboard({token, onUnauthorized}) {
             </div>
           </div>
 
-          <div style={{ marginBottom: 28 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, marginBottom: 28, alignItems: 'center' }}>
+            <PipelineFunnel stages={funnelStages} />
             <RoiDonut 
               assessmentCost={total_customers * (cost_assumptions?.cost_per_assessment || 5.0)}
               outreachCost={total_leads * (cost_assumptions?.cost_per_outreach || 50.0)}
@@ -2431,6 +2754,7 @@ function App() {
           </div>
         )}
 
+        <ArchitectureFlow />
         <KPIStrip stats={stats} />
 
         {activeTab === 'leads' ? (
@@ -2477,7 +2801,7 @@ function App() {
         ) : activeTab === 'compare' ? (
           <CompareLeadsWorkspace leads={leads} token={auth?.token} onUnauthorized={handleUnauthorized} />
         ) : (
-          <GovernanceDashboard token={auth?.token} onUnauthorized={handleUnauthorized} />
+          <GovernanceDashboard leads={leads} stats={stats} token={auth?.token} onUnauthorized={handleUnauthorized} />
         )}
       </div>
 
