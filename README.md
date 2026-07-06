@@ -96,11 +96,57 @@ channel and window, and the underlying transaction stream that produced it.
 
 ## Conversion Rate & Underwriting Methodology
 
-**Conversion Rate Definition:** In the LENS simulation, the conversion rate is defined as the percentage of flagged leads whose ground-truth persona matches genuine loan intent (i.e. has a true loan type other than "None"), evaluated against the synthetic labels generated with a configurable dataset noise (default `noise_level=20%`).
+The **CAPACITY** pipeline stage converts CLARITY's alternative income reconstructions and MATCH's product predictions into an actionable underwriting artifact: a borrower's eligible principal, repayment tenure, and debt-to-income limits. This introduces statistical and risk discipline to Prospect Assist AI.
 
-**Underwriting & Capacity Assumptions:** The CAPACITY module utilizes standard Fixed Obligation to Income Ratio (FOIR) bands (Personal Loan: 40-50%, Auto Loan: 45-55%, Home Loan: 50-60%, Mortgage Loan: 50-55%) and retail interest rate/tenure assumptions (Personal: 13.0% APR / 60m, Auto: 9.5% APR / 84m, Home: 8.5% APR / 240m, Mortgage: 9.0% APR / 180m) to calculate prudent repayment limits and eligible principal amounts. In a production deployment, these rates and bands would be pulled dynamically from live bank rate cards.
+### 1. Conversion Rate Definition
+In the LENS simulation, the lead conversion rate is defined as:
+$$\text{Conversion Rate} = \frac{\text{Flagged Leads with True Loan Type} \neq \text{'None'}}{\text{Total Flagged Leads}} \times 100$$
+This evaluates the engine's capability to qualify active credit demand against standard 90-day transaction streams under a default **20% dataset noise level** (label mismatches, random outliers, and conflicting behavioral patterns).
 
-**Granular Accuracy Breakdown:** To support underwriting precision auditing, the Governance tab now displays a per-loan-type accuracy breakdown (Precision, Recall, and F1-score for Personal/Auto/Home/Mortgage products) alongside the aggregate model metrics.
+### 2. CAPACITY Underwriting Rules & Formulas
+
+#### A. Recurring Debt Obligation Detection
+The system scans the 90-day transaction history to identify monthly recurring debits spaced between **20 and 45 days** representing existing debt obligations (EMIs).
+* **Classification Criteria:** A counterparty's debits are grouped, sorted, and classified as an existing EMI if the occurrences are $\ge 3$, their coefficient of variation is low ($CV < 0.05$), and they match lender keywords (e.g. `nbfc`, `loan`, `bank`, `finance`, `capital`) or carry the transaction type `EMI_DEBIT`. 
+* **Self-Transfer Exclusion:** Transactions representing savings discipline (e.g., counterparties containing `"self"`, such as self-recurring deposits) are excluded from debt calculations.
+* **Recurring Utility Outflows:** Regular non-debt monthly debits (e.g., containing `rent`, `utility`, `bill`, `electricity`, `postpaid`) are aggregated to compute net disposable income, but are not counted against the Debt-to-Income (DTI) ratio.
+
+#### B. Risk-Adjusted FOIR Interpolation
+To establish a safe borrowing ceiling, a Fixed Obligation to Income Ratio (FOIR) is applied to the customer's reconstructed disposable income:
+$$\text{Disposable Income} = \text{Reconstructed Income} - \text{Existing EMIs} - \text{Recurring Non-Debt Outflows}$$
+The applied FOIR ratio is shifted dynamically based on the customer's repayment-indicator score from TRUST ($S_{\text{repay}}$):
+$$\text{FOIR}_{\text{applied}} = \text{FOIR}_{\text{min}} + (\text{FOIR}_{\text{max}} - \text{FOIR}_{\text{min}}) \times \frac{S_{\text{repay}}}{100}$$
+If the customer has a weak repayment score (e.g. overdraft near-misses, payment defaults), the FOIR shifts toward the lower bound. A strong score (e.g. CC paid in full, utility consistency) shifts it toward the upper bound.
+
+Standard risk-adjusted bands used as assumptions:
+* **Personal Loan:** 40% - 50% FOIR
+* **Auto Loan:** 45% - 55% FOIR
+* **Home Loan:** 50% - 60% FOIR
+* **Mortgage Loan:** 50% - 55% FOIR
+
+*Note:* In production deployments, these bands and parameters are fetched dynamically from the bank's active rate cards.
+
+#### C. Bounded Debt-to-Income (DTI) and Leverage Clamps
+* **Safe EMI Ceiling:** $\text{Safe EMI Ceiling} = \text{Disposable Income} \times \text{FOIR}_{\text{applied}}$
+* **Leverage Alert:** If the customer's existing EMIs exceed **60%** of their reconstructed income, they are flagged as `over_leveraged: True` and their disposable income is clamped to `0.0`.
+* **DTI Ratio:** Calculated as the ratio of total debt service obligations (existing EMIs + proposed safe EMI ceiling) relative to reconstructed monthly income:
+$$\text{DTI} = \frac{\text{Existing EMI} + \text{Safe EMI Ceiling}}{\text{Reconstructed Income}}$$
+
+#### D. Reducing-Balance Eligible Principal calculation
+The maximum eligible loan principal ($P$) is solved dynamically using the standard reducing-balance amortization formula:
+$$P = \text{EMI}_{\text{ceiling}} \times \frac{(1 + r)^N - 1}{r(1 + r)^N}$$
+Where:
+* $r$ is the monthly interest rate ($\text{Annual Interest Rate} / 12 / 100$)
+* $N$ is the tenure in months
+
+Retail product assumptions used for calculations:
+* **Personal Loan:** 13.0% APR, 60 months tenure ($N=60$)
+* **Auto Loan:** 9.5% APR, 84 months tenure ($N=84$)
+* **Home Loan:** 8.5% APR, 240 months tenure ($N=240$)
+* **Mortgage Loan:** 9.0% APR, 180 months tenure ($N=180$)
+
+### 3. Granular Accuracy Breakdown
+RMs and risk compliance auditors can evaluate model performance per product type. The Governance dashboard contains a **Class Metrics Breakdown** table next to the confusion matrix, calculating Precision, Recall, and F1-scores specifically for the four retail loan products (Personal, Auto, Home, Mortgage), distinguishing them from general non-intent customers.
 
 ## Governance, Compliance & Business ROI
 
