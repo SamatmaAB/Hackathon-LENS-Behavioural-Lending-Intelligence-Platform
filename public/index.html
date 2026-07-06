@@ -1061,36 +1061,41 @@ function FoirBandChart({ bands, appliedFoir, loanType }) {
   if (!bands) return null;
   return (
     <div style={{ background: 'var(--surface-3)', border: '1px solid var(--border-soft)', borderRadius: 12, padding: '16px 20px', marginBottom: 24, marginTop: 15 }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 18 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-low)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 20 }}>
         FOIR Underwriting Bands & Applied Interpolation
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="income-bars" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {bands.map((b) => {
           const isActive = b.loanType === loanType;
           const leftPct = (b.min / 60) * 100;
           const widthPct = ((b.max - b.min) / 60) * 100;
           const appliedPct = (appliedFoir / 60) * 100;
           return (
-            <div key={b.loanType} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 120, fontSize: 12.5, fontWeight: isActive ? '700' : '500', color: isActive ? 'var(--text-hi)' : 'var(--text-mid)', flexShrink: 0 }}>
+            <div key={b.loanType} className="income-bar-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div className="ib-label" style={{ width: 120, fontWeight: isActive ? '700' : '500', color: isActive ? 'var(--text-hi)' : 'var(--text-mid)', fontSize: 12.5 }}>
                 {b.loanType}
               </div>
-              <div style={{ flex: 1, height: 22, position: 'relative' }}>
-                <div style={{ position: 'absolute', right: `calc(100% - ${leftPct}% + 6px)`, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: 'var(--text-low)', fontFamily: 'var(--font-mono)' }}>
-                  {b.min}%
-                </div>
-                <div style={{ position: 'absolute', left: `${leftPct}%`, width: `${widthPct}%`, height: '100%', background: isActive ? 'var(--teal)' : 'var(--border)', opacity: isActive ? 0.9 : 0.4, borderRadius: 4 }}></div>
-                <div style={{ position: 'absolute', left: `calc(${leftPct + widthPct}% + 6px)`, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: 'var(--text-low)', fontFamily: 'var(--font-mono)' }}>
-                  {b.max}%
-                </div>
+              <div className="income-bar-track" style={{ position: 'relative', flex: 1, height: 22, overflow: 'visible', background: 'var(--surface-2)', border: '1px solid var(--border-soft)', borderRadius: 4 }}>
+                <div className="income-bar-fill" style={{ 
+                  position: 'absolute', 
+                  left: `${leftPct}%`, 
+                  width: `${widthPct}%`, 
+                  height: '100%',
+                  background: isActive ? 'var(--teal)' : 'var(--text-low)',
+                  opacity: isActive ? 1 : 0.25,
+                  borderRadius: 4
+                }}></div>
                 {isActive && (
                   <>
                     <div style={{ position: 'absolute', left: `${appliedPct}%`, top: -4, bottom: -4, width: 2, background: 'var(--red)', zIndex: 10 }}></div>
-                    <div style={{ position: 'absolute', left: `${appliedPct}%`, bottom: '100%', transform: 'translateX(-50%)', fontSize: 9.5, fontWeight: '700', color: 'var(--red)', whiteSpace: 'nowrap', marginBottom: 2, zIndex: 10 }}>
+                    <div style={{ position: 'absolute', left: `${appliedPct}%`, bottom: '100%', transform: 'translateX(-50%)', fontSize: 10, fontWeight: '700', color: 'var(--red)', whiteSpace: 'nowrap', paddingBottom: 4, zIndex: 10 }}>
                       {appliedFoir}% applied
                     </div>
                   </>
                 )}
+              </div>
+              <div className="ib-val" style={{ width: 65, textAlign: 'right', fontSize: 11, color: 'var(--text-low)', fontFamily: 'var(--font-mono)' }}>
+                {b.min}%-{b.max}%
               </div>
             </div>
           );
