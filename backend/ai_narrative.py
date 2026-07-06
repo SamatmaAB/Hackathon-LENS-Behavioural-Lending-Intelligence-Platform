@@ -9,6 +9,7 @@ This sits AFTER the TRUST stage — it does not alter any score.
 import os
 import json
 import httpx
+import time
 
 NARRATIVE_SYSTEM_PROMPT = """\
 You are an assistant embedded in LENS, a bank lending-intelligence platform used by IDBI Bank \
@@ -82,20 +83,28 @@ def generate_lead_narrative(lead_payload: dict) -> dict:
         "max_tokens": 1024
     }
 
-    try:
-        response = httpx.post(
-            "https://integrate.api.nvidia.com/v1/chat/completions",
-            headers=headers,
-            json=body,
-            timeout=30.0
-        )
-        if response.status_code != 200:
-            raise RuntimeError(f"NVIDIA NIM API error {response.status_code}: {response.text}")
-        
-        res_data = response.json()
-        raw_text = res_data["choices"][0]["message"]["content"]
-    except Exception as e:
-        raise RuntimeError(f"NVIDIA API request failed: {e}")
+    # Robust retry-on-timeout loop
+    last_err = None
+    for attempt in range(3):
+        try:
+            response = httpx.post(
+                "https://integrate.api.nvidia.com/v1/chat/completions",
+                headers=headers,
+                json=body,
+                timeout=120.0
+            )
+            if response.status_code == 200:
+                res_data = response.json()
+                raw_text = res_data["choices"][0]["message"]["content"]
+                break
+            else:
+                raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
+        except (httpx.HTTPError, RuntimeError) as e:
+            last_err = e
+            if attempt < 2:
+                time.sleep(2 * (attempt + 1))
+    else:
+        raise RuntimeError(f"NVIDIA API request failed after 3 attempts: {last_err}")
 
     # Strip accidental code fences defensively
     cleaned = raw_text.strip()

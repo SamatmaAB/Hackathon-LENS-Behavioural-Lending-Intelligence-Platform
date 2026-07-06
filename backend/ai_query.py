@@ -11,6 +11,7 @@ No new scoring logic — purely a UX layer over data already exposed.
 import os
 import json
 import httpx
+import time
 
 NVIDIA_GOVERNANCE_TOOLS = [
     {
@@ -77,6 +78,27 @@ def _get_api_key():
     return key
 
 
+def _post_with_retry(headers, json_body, timeout=120.0, retries=3):
+    last_err = None
+    for attempt in range(retries):
+        try:
+            response = httpx.post(
+                "https://integrate.api.nvidia.com/v1/chat/completions",
+                headers=headers,
+                json=json_body,
+                timeout=timeout
+            )
+            if response.status_code == 200:
+                return response
+            else:
+                raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
+        except (httpx.HTTPError, RuntimeError) as e:
+            last_err = e
+            if attempt < retries - 1:
+                time.sleep(2 * (attempt + 1))
+    raise RuntimeError(f"NVIDIA API query failed after {retries} attempts: {last_err}")
+
+
 def run_governance_query(question: str, tool_executor) -> str:
     """
     question: plain-English governance question from an admin/analyst.
@@ -105,20 +127,9 @@ def run_governance_query(question: str, tool_executor) -> str:
             "max_tokens": 1024
         }
         
-        try:
-            response = httpx.post(
-                "https://integrate.api.nvidia.com/v1/chat/completions",
-                headers=headers,
-                json=body,
-                timeout=45.0
-            )
-            if response.status_code != 200:
-                raise RuntimeError(f"NVIDIA NIM API error {response.status_code}: {response.text}")
-            
-            res_data = response.json()
-            message = res_data["choices"][0]["message"]
-        except Exception as e:
-            raise RuntimeError(f"NVIDIA API query failed: {e}")
+        response = _post_with_retry(headers, body, timeout=120.0)
+        res_data = response.json()
+        message = res_data["choices"][0]["message"]
 
         # Check if model wants to call tools
         tool_calls = message.get("tool_calls")
@@ -161,14 +172,8 @@ def run_governance_query(question: str, tool_executor) -> str:
             "temperature": 0.2,
             "max_tokens": 1024
         }
-        response = httpx.post(
-            "https://integrate.api.nvidia.com/v1/chat/completions",
-            headers=headers,
-            json=body,
-            timeout=30.0
-        )
-        if response.status_code == 200:
-            return response.json()["choices"][0]["message"].get("content", "")
+        response = _post_with_retry(headers, body, timeout=60.0)
+        return response.json()["choices"][0]["message"].get("content", "")
     except Exception:
         pass
 
