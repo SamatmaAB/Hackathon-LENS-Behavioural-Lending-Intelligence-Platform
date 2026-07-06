@@ -174,6 +174,16 @@ def init_database():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if os.getenv("VERCEL") and not os.path.exists(DB_PATH):
+        src_db = os.path.join(BASE_DIR, "lens.db")
+        if os.path.exists(src_db):
+            try:
+                import shutil
+                shutil.copy2(src_db, DB_PATH)
+                print(f"Successfully copied bundled database to {DB_PATH}")
+            except Exception as e:
+                print(f"Failed to copy bundled database: {e}")
+                
     db_already_exists = db_exists()
     init_database()
     seed_default_users()
