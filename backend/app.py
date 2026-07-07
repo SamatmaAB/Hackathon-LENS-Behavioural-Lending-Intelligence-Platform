@@ -28,6 +28,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Header, Depends, status, UploadFile, File, Body, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 def format_utc_datetime(dt: datetime) -> str:
@@ -248,6 +250,27 @@ async def lifespan(app: FastAPI):
     yield
 
 app.router.lifespan_context = lifespan
+
+# ---------------------------------------------------------------------------
+# Static frontend serving
+# ---------------------------------------------------------------------------
+# Resolve the public/ directory relative to the repo root (one level above
+# backend/), so it works both locally and on Render.
+_REPO_ROOT = os.path.dirname(BASE_DIR)          # …/Hackathon-LENS-…
+_PUBLIC_DIR = os.path.join(_REPO_ROOT, "public")
+
+if os.path.isdir(_PUBLIC_DIR):
+    # Mount static assets at /static so they don't shadow /api or /docs
+    app.mount("/static", StaticFiles(directory=_PUBLIC_DIR), name="static")
+
+@app.get("/", include_in_schema=False)
+async def serve_index():
+    """Serve the frontend SPA index page."""
+    index_path = os.path.join(_PUBLIC_DIR, "index.html")
+    return FileResponse(index_path, media_type="text/html")
+
+# ---------------------------------------------------------------------------
+
 def hash_password(password: str, salt: Optional[str] = None):
     salt = salt or secrets.token_hex(16)
     digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 120_000)

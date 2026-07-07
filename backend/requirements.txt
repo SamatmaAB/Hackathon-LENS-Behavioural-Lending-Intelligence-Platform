@@ -1,6 +1,7 @@
 fastapi==0.115.0
 psycopg[binary]==3.2.13
 uvicorn[standard]==0.30.6
+aiofiles>=23.2.1
 numpy==1.26.4
 joblib==1.4.2
 httpx
