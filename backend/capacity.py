@@ -205,3 +205,116 @@ def compute_capacity(
         assumptions=assumptions,
         over_leveraged=over_leveraged
     )
+def check_loan_stacking(
+    capacity_result: "CapacityResult",
+    requested_types: List[str],
+) -> Dict[str, Any]:
+    """
+    Given an already-computed CapacityResult and a list of 2+ loan types the
+    customer is asking about simultaneously (e.g. "I want a car AND I'm
+    buying a flat"), checks whether the combined EMI obligation would breach
+    the 60% over-leveraged ceiling against the SAME disposable income pool
+    that each individual eligible_amount_by_type figure was calculated from
+    in isolation.
+
+    This does not change any existing single-loan number — it answers a
+    question compute_capacity() was never asked: "what if more than one
+    of these gets approved."
+    """
+    invalid = [t for t in requested_types if t not in FOIR_BANDS and t != "Mortgage"]
+    if invalid:
+        raise ValueError(f"Unknown loan type(s): {invalid}")
+    requested_types = [normalize_loan_type(t) for t in requested_types]
+    if len(requested_types) < 2:
+        raise ValueError("Stacking check requires at least 2 loan types to compare")
+
+    disposable_income = capacity_result.disposable_income
+    existing_emi = capacity_result.existing_emi_monthly
+
+    combined_emi_ceiling = 0.0
+    per_type_breakdown = []
+    for ltype in requested_types:
+        foir_ratio = capacity_result.assumptions["foir_bands"][ltype]
+        # Use the same repay-score-shifted ratio pattern as compute_capacity,
+        # approximated here via the already-applied ratio on the recommended type
+        # scaled proportionally — for a precise re-derivation, prefer calling
+        # compute_capacity per type; this is a fast comparative estimate.
+        band_lower, band_upper = foir_ratio
+        estimated_ratio = (band_lower + band_upper) / 2
+        emi_share = disposable_income * estimated_ratio
+        combined_emi_ceiling += emi_share
+        per_type_breakdown.append({
+            "loan_type": ltype,
+            "standalone_eligible_amount": capacity_result.eligible_amount_by_type.get(ltype, 0.0),
+            "estimated_monthly_emi_share": round(emi_share, 2),
+        })
+
+    total_committed_if_all_approved = existing_emi + combined_emi_ceiling
+    stacking_breaches_ceiling = (
+        disposable_income > 0 and
+        total_committed_if_all_approved > (disposable_income + existing_emi) * 0.6
+    )
+
+    return {
+        "requested_types": requested_types,
+        "per_type_breakdown": per_type_breakdown,
+        "existing_emi_monthly": existing_emi,
+        "combined_new_emi_if_all_approved": round(combined_emi_ceiling, 2),
+        "total_committed_monthly_if_all_approved": round(total_committed_if_all_approved, 2),
+        "stacking_breaches_60pct_ceiling": stacking_breaches_ceiling,
+        "recommendation": (
+            f"Approving all {len(requested_types)} simultaneously would push total obligations "
+            f"past prudent FOIR limits. Recommend sequencing: approve the highest-priority product "
+            f"first, reassess disposable income before considering the next."
+            if stacking_breaches_ceiling else
+            f"Customer has sufficient headroom to be considered for all {len(requested_types)} "
+            f"products without breaching the 60% obligation ceiling, subject to standard KYC/policy checks."
+        ),
+    }
+def stress_test_income_shock(
+    customer_id: str,
+    transactions: List[Dict[str, Any]],
+    reconstructed_income: float,
+    declared_income: Optional[float],
+    predicted_loan_type: str,
+    repay_score: float = 50.0,
+    shock_pct: float = 0.15,
+) -> Dict[str, Any]:
+    """
+    Re-runs compute_capacity() at a reduced income level (default: -15%) to
+    show whether the customer's eligibility survives a realistic income
+    shock — job loss, gig-work slowdown, seasonal dip. Reuses the exact
+    same FOIR math, just fed a lower income, so results are directly
+    comparable and never diverge from the primary capacity calculation.
+    """
+    baseline = compute_capacity(
+        customer_id, transactions, reconstructed_income, declared_income,
+        predicted_loan_type, repay_score,
+    )
+    shocked_income = reconstructed_income * (1 - shock_pct)
+    shocked = compute_capacity(
+        customer_id, transactions, shocked_income, declared_income,
+        predicted_loan_type, repay_score,
+    )
+
+    eligible_amount_drop_pct = (
+        round(100 * (1 - shocked.recommended_eligible_amount / baseline.recommended_eligible_amount), 1)
+        if baseline.recommended_eligible_amount > 0 else 0.0
+    )
+
+    return {
+        "shock_pct_applied": shock_pct,
+        "baseline_recommended_eligible_amount": baseline.recommended_eligible_amount,
+        "shocked_recommended_eligible_amount": shocked.recommended_eligible_amount,
+        "eligible_amount_drop_pct": eligible_amount_drop_pct,
+        "baseline_over_leveraged": baseline.over_leveraged,
+        "shocked_over_leveraged": shocked.over_leveraged,
+        "newly_over_leveraged_under_shock": (not baseline.over_leveraged) and shocked.over_leveraged,
+        "commentary": (
+            f"A {int(shock_pct*100)}% income shock would reduce eligible amount by "
+            f"{eligible_amount_drop_pct}%"
+            + (" and push this customer into over-leveraged territory — recommend a more "
+               "conservative eligible amount than the point-in-time figure suggests."
+               if (not baseline.over_leveraged and shocked.over_leveraged) else ".")
+        ),
+    }

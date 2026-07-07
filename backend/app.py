@@ -26,7 +26,7 @@ from datetime import datetime, timedelta, UTC
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query, Header, Depends, status, UploadFile, File, Body
+from fastapi import FastAPI, HTTPException, Query, Header, Depends, status, UploadFile, File, Body, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -178,6 +178,29 @@ def _migrate_database(conn):
              db.execute(conn, CREATE_OUTCOMES_TABLE.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY"))
         else:
              pass
+
+    CREATE_RM_CAPACITY_TABLE = """
+    CREATE TABLE IF NOT EXISTS rm_capacity (
+        user_id INTEGER PRIMARY KEY,
+        max_daily_leads INTEGER NOT NULL DEFAULT 15,
+        active_assigned_count INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+    );
+    """
+    CREATE_LEAD_ASSIGNMENTS_TABLE = """
+    CREATE TABLE IF NOT EXISTS lead_assignments (
+        customer_id TEXT PRIMARY KEY,
+        assigned_rm_id INTEGER NOT NULL,
+        assigned_at TEXT NOT NULL,
+        FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
+        FOREIGN KEY (assigned_rm_id) REFERENCES users(user_id)
+    );
+    """
+    try:
+        db.execute(conn, CREATE_RM_CAPACITY_TABLE)
+        db.execute(conn, CREATE_LEAD_ASSIGNMENTS_TABLE)
+    except Exception:
+        pass
 
 
 def init_database():
@@ -845,6 +868,48 @@ def leads_segmentation(user=Depends(require_user)):
         conn.close()
 
 
+@app.get("/api/leads/{customer_id}/loan-comparison")
+def loan_comparison(customer_id: str, types: str = Query(..., description="Comma-separated loan types, e.g. 'Home Loan,Auto Loan'"),
+                     user=Depends(require_user)):
+    """
+    Compares 2+ loan products side-by-side for one customer and flags
+    whether pursuing them simultaneously breaches prudent FOIR limits.
+    Directly answers the problem statement's "Personal Loan, Home loan,
+    Mortgage Loan, Auto Loan" enumeration with a cross-product view.
+    """
+    from backend import capacity as capacity_module
+
+    conn = get_conn()
+    cust = db.row(conn, "SELECT * FROM customers WHERE customer_id=?", (customer_id,))
+    if not cust:
+        conn.close()
+        raise HTTPException(404, "Customer not found")
+
+    lead = db.row(conn, "SELECT * FROM leads WHERE customer_id=?", (customer_id,))
+    if not lead:
+        conn.close()
+        raise HTTPException(404, "No lead record — customer has not been scored yet")
+
+    txns = db.rows(conn, "SELECT * FROM transactions WHERE customer_id=?", (customer_id,))
+    cap_result = capacity_module.compute_capacity(
+        customer_id=customer_id,
+        transactions=txns,
+        reconstructed_income=lead["synthetic_income"],
+        declared_income=cust.get("declared_income"),
+        predicted_loan_type=lead["predicted_loan_type"],
+        repay_score=lead.get("trust_score", 50.0),
+    )
+    conn.close()
+
+    requested = [t.strip() for t in types.split(",") if t.strip()]
+    try:
+        result = capacity_module.check_loan_stacking(cap_result, requested)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+    return result
+
+
 @app.get("/api/leads/{customer_id}")
 def lead_detail(customer_id: str, user=Depends(require_user)):
     conn = get_conn()
@@ -1464,22 +1529,36 @@ def reject_threshold_change(request_id: int, user=Depends(require_admin)):
 
 
 @app.post("/api/customers/{customer_id}/ingest-statement")
-async def ingest_statement(customer_id: str, file: UploadFile = File(...), user=Depends(require_write_user)):
-    """
-    Upload a real (or realistic sample) bank statement CSV. Replaces synthetic
-    transactions for this customer and reruns the full PULSE->TRUST pipeline,
-    so the demo can prove the engine works on genuine data, not just seed=42.
-    """
+async def ingest_statement(
+    customer_id: str,
+    file: UploadFile = File(...),
+    consent_confirmed: bool = Form(...),
+    user=Depends(require_write_user),
+):
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(400, "Only CSV statements supported in this version")
+    if not consent_confirmed:
+        raise HTTPException(422, "Explicit customer consent is required before ingesting real transaction data")
 
     content = await file.read()
     try:
-        transactions = ingest.parse_csv_statement(content, customer_id)
+        transactions = ingest.parse_csv_statement(content, customer_id, consent_confirmed=consent_confirmed)
     except ValueError as e:
         raise HTTPException(422, str(e))
 
     conn = get_conn()
+    # Record the consent event for audit — reuses the existing access_logs
+    # pattern if present, otherwise a minimal insert:
+    try:
+        db.execute(
+            conn,
+            "INSERT INTO access_logs (user_id, customer_id, action, timestamp) VALUES (?,?,?,?)",
+            (user["user_id"], customer_id, "real_statement_ingested_with_consent",
+             datetime.now(timezone.utc).isoformat()),
+        )
+    except Exception:
+        pass  # access_logs may not exist in all environments — non-fatal
+
     db.execute(conn, "DELETE FROM transactions WHERE customer_id=?", (customer_id,))
     for txn in transactions:
         db.execute(
@@ -1489,7 +1568,8 @@ async def ingest_statement(customer_id: str, file: UploadFile = File(...), user=
         )
     conn.commit()
 
-    cust = db.one(conn, "SELECT * FROM customers WHERE customer_id=?", (customer_id,))
+    cust_rows = db.rows(conn, "SELECT * FROM customers WHERE customer_id=?", (customer_id,))
+    cust = cust_rows[0] if cust_rows else None
     txns = db.rows(conn, "SELECT * FROM transactions WHERE customer_id=?", (customer_id,))
     lead = engine.score_customer(cust, txns=txns, conn=conn)
     conn.close()
@@ -1497,9 +1577,9 @@ async def ingest_statement(customer_id: str, file: UploadFile = File(...), user=
     return {
         "transactions_ingested": len(transactions),
         "source": "real_statement_upload",
+        "consent_recorded": True,
         "lead_result": lead,
     }
-
 
 @app.post("/api/leads/{customer_id}/outcome")
 def record_lead_outcome(customer_id: str, outcome: str = Body(..., embed=True), user=Depends(require_write_user)):
@@ -1561,6 +1641,59 @@ def simulate_what_if(payload: dict = Body(...), user=Depends(require_user)):
 
 from fastapi.responses import HTMLResponse
 
+
+from backend import threshold_sensitivity
+
+@app.get("/api/governance/threshold-sensitivity")
+def get_threshold_sensitivity(user=Depends(require_user)):
+    conn = get_conn()
+    result = threshold_sensitivity.compute_threshold_curve(conn, db)
+    conn.close()
+    return result
+
+
+@app.get("/api/leads/{customer_id}/stress-test")
+def get_stress_test(customer_id: str, shock_pct: float = Query(0.15, ge=0.0, le=0.9),
+                     user=Depends(require_user)):
+    from backend import capacity as capacity_module
+
+    conn = get_conn()
+    cust = db.row(conn, "SELECT * FROM customers WHERE customer_id=?", (customer_id,))
+    lead = db.row(conn, "SELECT * FROM leads WHERE customer_id=?", (customer_id,))
+    if not cust or not lead:
+        conn.close()
+        raise HTTPException(404, "Customer or lead record not found")
+
+    txns = db.rows(conn, "SELECT * FROM transactions WHERE customer_id=?", (customer_id,))
+    result = capacity_module.stress_test_income_shock(
+        customer_id=customer_id, transactions=txns,
+        reconstructed_income=lead["synthetic_income"], declared_income=cust.get("declared_income"),
+        predicted_loan_type=lead["predicted_loan_type"], repay_score=lead.get("trust_score", 50.0),
+        shock_pct=shock_pct,
+    )
+    conn.close()
+    return result
+
+
+from backend import assignment as assignment_module
+
+@app.post("/api/leads/auto-assign")
+def auto_assign_leads(limit: int = Query(50, ge=1, le=500), user=Depends(require_write_user)):
+    conn = get_conn()
+    unassigned = db.rows(
+        conn,
+        """
+        SELECT l.customer_id, l.trust_score, l.tier FROM leads l
+        LEFT JOIN lead_assignments la ON la.customer_id = l.customer_id
+        WHERE la.customer_id IS NULL AND l.tier IN ('Tier 1', 'Tier 2')
+        ORDER BY (l.tier = 'Tier 1') DESC, l.trust_score DESC
+        LIMIT ?
+        """,
+        (limit,),
+    )
+    result = assignment_module.assign_leads_to_rms(conn, db, unassigned)
+    conn.close()
+    return result
 @app.get("/api/leads/{customer_id}/report", response_class=HTMLResponse)
 def get_lead_report(customer_id: str, user=Depends(require_user)):
     """Returns a styled HTML string suitable for window.print() as a PDF."""

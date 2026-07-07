@@ -42,12 +42,23 @@ def _classify_type(row: dict, amount: float) -> str:
     return "UPI_CREDIT" if amount > 0 else "UPI_DEBIT"
 
 
-def parse_csv_statement(file_bytes: bytes, customer_id: str) -> List[Dict]:
+def parse_csv_statement(file_bytes: bytes, customer_id: str, consent_confirmed: bool = False) -> List[Dict]:
     """
     Parses a raw CSV bank statement export into LENS transaction dicts.
     Raises ValueError with a clear message if required columns can't be found —
     this must fail loudly, never silently drop data in a lending context.
+
+    consent_confirmed: must be explicitly True — the caller (API layer) is
+    responsible for having obtained and recorded customer consent before
+    calling this function. This is enforced here, not just documented,
+    so ingestion cannot silently proceed without it.
     """
+    if not consent_confirmed:
+        raise ValueError(
+            "Cannot ingest a real bank statement without explicit customer consent. "
+            "Set consent_confirmed=True only after recording consent (DPDP Act compliance)."
+        )
+
     text = file_bytes.decode("utf-8-sig", errors="replace")
     reader = csv.reader(io.StringIO(text))
     rows = list(reader)
