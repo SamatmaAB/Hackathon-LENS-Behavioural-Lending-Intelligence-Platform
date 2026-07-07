@@ -80,6 +80,7 @@ def _get_api_key():
 
 def _post_with_retry(headers, json_body, timeout=120.0, retries=3):
     last_err = None
+    # Try NVIDIA
     for attempt in range(retries):
         try:
             response = httpx.post(
@@ -102,7 +103,32 @@ def _post_with_retry(headers, json_body, timeout=120.0, retries=3):
                 break
             if attempt < retries - 1:
                 time.sleep(2 * (attempt + 1))
-    raise RuntimeError(f"NVIDIA API query failed after {retries} attempts: {last_err}")
+                
+    # Fallback to GROQ if NVIDIA fails
+    groq_key = os.environ.get("GROQ_API_KEY")
+    if groq_key:
+        groq_headers = {
+            "Authorization": f"Bearer {groq_key}",
+            "Content-Type": "application/json"
+        }
+        groq_body = json_body.copy()
+        groq_body["model"] = "llama-3.3-70b-versatile"
+        
+        try:
+            response = httpx.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=groq_headers,
+                json=groq_body,
+                timeout=httpx.Timeout(timeout, connect=3.0)
+            )
+            if response.status_code == 200:
+                return response
+            else:
+                last_err = RuntimeError(f"Groq HTTP {response.status_code}: {response.text}")
+        except Exception as e:
+            last_err = e
+
+    raise RuntimeError(f"API query failed after {retries} attempts: {last_err}")
 
 
 def run_governance_query(question: str, tool_executor) -> str:
@@ -133,7 +159,7 @@ def run_governance_query(question: str, tool_executor) -> str:
             "max_tokens": 1024
         }
         
-        response = _post_with_retry(headers, body, timeout=120.0)
+        response = _post_with_retry(headers, body, timeout=15.0)
         res_data = response.json()
         message = res_data["choices"][0]["message"]
 
