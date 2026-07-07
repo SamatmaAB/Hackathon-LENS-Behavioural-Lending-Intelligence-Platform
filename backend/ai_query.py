@@ -78,33 +78,34 @@ def _get_api_key():
     return key
 
 
-def _post_with_retry(headers, json_body, timeout=120.0, retries=3):
+def _post_with_retry(headers, json_body, timeout=120.0, retries=3, skip_nvidia=False):
     last_err = None
     # Try NVIDIA
-    for attempt in range(retries):
-        try:
-            response = httpx.post(
-                "https://integrate.api.nvidia.com/v1/chat/completions",
-                headers=headers,
-                json=json_body,
-                timeout=httpx.Timeout(timeout, connect=3.0)
-            )
-            if response.status_code == 200:
-                return response
-            elif response.status_code in (401, 403):
-                # Don't retry auth errors
-                raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
-            else:
-                raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
-        except (httpx.HTTPError, RuntimeError) as e:
-            last_err = e
-            # Only retry if it's not an auth error
-            if "HTTP 401" in str(e) or "HTTP 403" in str(e):
-                break
-            if attempt < retries - 1:
-                time.sleep(2 * (attempt + 1))
+    if not skip_nvidia:
+        for attempt in range(retries):
+            try:
+                response = httpx.post(
+                    "https://integrate.api.nvidia.com/v1/chat/completions",
+                    headers=headers,
+                    json=json_body,
+                    timeout=httpx.Timeout(timeout, connect=3.0)
+                )
+                if response.status_code == 200:
+                    return response, "nvidia"
+                elif response.status_code in (401, 403):
+                    # Don't retry auth errors
+                    raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
+                else:
+                    raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
+            except (httpx.HTTPError, RuntimeError) as e:
+                last_err = e
+                # Only retry if it's not an auth error
+                if "HTTP 401" in str(e) or "HTTP 403" in str(e):
+                    break
+                if attempt < retries - 1:
+                    time.sleep(2 * (attempt + 1))
                 
-    # Fallback to GROQ if NVIDIA fails
+    # Fallback to GROQ if NVIDIA fails or is skipped
     groq_key = os.environ.get("GROQ_API_KEY")
     if groq_key:
         groq_headers = {
@@ -112,7 +113,7 @@ def _post_with_retry(headers, json_body, timeout=120.0, retries=3):
             "Content-Type": "application/json"
         }
         groq_body = json_body.copy()
-        groq_body["model"] = "llama-3.3-70b-versatile"
+        groq_body["model"] = "llama-3.1-8b-instant"
         
         try:
             response = httpx.post(
@@ -122,7 +123,7 @@ def _post_with_retry(headers, json_body, timeout=120.0, retries=3):
                 timeout=httpx.Timeout(timeout, connect=3.0)
             )
             if response.status_code == 200:
-                return response
+                return response, "groq"
             else:
                 last_err = RuntimeError(f"Groq HTTP {response.status_code}: {response.text}")
         except Exception as e:
@@ -149,6 +150,7 @@ def run_governance_query(question: str, tool_executor) -> str:
         {"role": "user", "content": question}
     ]
 
+    active_provider = None
     # Agentic loop — at most 5 tool rounds to prevent runaway
     for _ in range(5):
         body = {
@@ -159,7 +161,10 @@ def run_governance_query(question: str, tool_executor) -> str:
             "max_tokens": 1024
         }
         
-        response = _post_with_retry(headers, body, timeout=15.0)
+        skip_nvidia = (active_provider == "groq")
+        response, provider = _post_with_retry(headers, body, timeout=15.0, skip_nvidia=skip_nvidia)
+        active_provider = provider
+        
         res_data = response.json()
         message = res_data["choices"][0]["message"]
 
