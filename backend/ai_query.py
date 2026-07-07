@@ -86,14 +86,20 @@ def _post_with_retry(headers, json_body, timeout=120.0, retries=3):
                 "https://integrate.api.nvidia.com/v1/chat/completions",
                 headers=headers,
                 json=json_body,
-                timeout=timeout
+                timeout=httpx.Timeout(timeout, connect=3.0)
             )
             if response.status_code == 200:
                 return response
+            elif response.status_code in (401, 403):
+                # Don't retry auth errors
+                raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
             else:
                 raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
         except (httpx.HTTPError, RuntimeError) as e:
             last_err = e
+            # Only retry if it's not an auth error
+            if "HTTP 401" in str(e) or "HTTP 403" in str(e):
+                break
             if attempt < retries - 1:
                 time.sleep(2 * (attempt + 1))
     raise RuntimeError(f"NVIDIA API query failed after {retries} attempts: {last_err}")

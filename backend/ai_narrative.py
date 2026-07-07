@@ -174,7 +174,7 @@ def _post_chat_completion(provider: str, api_key: str, url: str, model: str, mes
         "temperature": 0.2,
         "max_tokens": 1024,
     }
-    response = httpx.post(url, headers=headers, json=body, timeout=timeout_seconds)
+    response = httpx.post(url, headers=headers, json=body, timeout=httpx.Timeout(timeout_seconds, connect=3.0))
     if response.status_code != 200:
         raise RuntimeError(f"{provider} HTTP {response.status_code}: {response.text}")
     raw_text = response.json()["choices"][0]["message"]["content"]
