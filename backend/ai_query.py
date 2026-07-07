@@ -78,34 +78,34 @@ def _get_api_key():
     return key
 
 
-def _post_with_retry(headers, json_body, timeout=120.0, retries=3, skip_nvidia=False):
+def _post_with_retry(headers, json_body, timeout=15.0, retries=3, skip_nvidia=False):
     last_err = None
-    # Try NVIDIA
-    if not skip_nvidia:
-        for attempt in range(retries):
-            try:
-                response = httpx.post(
-                    "https://integrate.api.nvidia.com/v1/chat/completions",
-                    headers=headers,
-                    json=json_body,
-                    timeout=httpx.Timeout(timeout, connect=3.0)
-                )
-                if response.status_code == 200:
-                    return response, "nvidia"
-                elif response.status_code in (401, 403):
-                    # Don't retry auth errors
-                    raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
-                else:
-                    raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
-            except (httpx.HTTPError, RuntimeError) as e:
-                last_err = e
-                # Only retry if it's not an auth error
-                if "HTTP 401" in str(e) or "HTTP 403" in str(e):
-                    break
-                if attempt < retries - 1:
-                    time.sleep(2 * (attempt + 1))
-                
-    # Fallback to GROQ if NVIDIA fails or is skipped
+
+    # 1. Try Gemini First
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    if gemini_key:
+        gemini_headers = {
+            "Authorization": f"Bearer {gemini_key}",
+            "Content-Type": "application/json"
+        }
+        gemini_body = json_body.copy()
+        gemini_body["model"] = "gemini-1.5-flash"
+        
+        try:
+            response = httpx.post(
+                "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+                headers=gemini_headers,
+                json=gemini_body,
+                timeout=httpx.Timeout(timeout, connect=3.0)
+            )
+            if response.status_code == 200:
+                return response, "gemini"
+            else:
+                last_err = RuntimeError(f"Gemini HTTP {response.status_code}: {response.text}")
+        except Exception as e:
+            last_err = e
+
+    # 2. Fallback to GROQ
     groq_key = os.environ.get("GROQ_API_KEY")
     if groq_key:
         groq_headers = {
@@ -113,7 +113,7 @@ def _post_with_retry(headers, json_body, timeout=120.0, retries=3, skip_nvidia=F
             "Content-Type": "application/json"
         }
         groq_body = json_body.copy()
-        groq_body["model"] = "llama-3.1-8b-instant"
+        groq_body["model"] = "llama-3.3-70b-versatile"
         
         try:
             response = httpx.post(
@@ -129,7 +129,30 @@ def _post_with_retry(headers, json_body, timeout=120.0, retries=3, skip_nvidia=F
         except Exception as e:
             last_err = e
 
-    raise RuntimeError(f"API query failed after {retries} attempts: {last_err}")
+    # 3. Try NVIDIA last
+    if not skip_nvidia:
+        for attempt in range(retries):
+            try:
+                response = httpx.post(
+                    "https://integrate.api.nvidia.com/v1/chat/completions",
+                    headers=headers,
+                    json=json_body,
+                    timeout=httpx.Timeout(timeout, connect=3.0)
+                )
+                if response.status_code == 200:
+                    return response, "nvidia"
+                elif response.status_code in (401, 403):
+                    raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
+                else:
+                    raise RuntimeError(f"HTTP {response.status_code}: {response.text}")
+            except (httpx.HTTPError, RuntimeError) as e:
+                last_err = e
+                if "HTTP 401" in str(e) or "HTTP 403" in str(e):
+                    break
+                if attempt < retries - 1:
+                    time.sleep(2 * (attempt + 1))
+
+    raise RuntimeError(f"API query failed after trying Gemini, Groq, and Nvidia: {last_err}")
 
 
 def run_governance_query(question: str, tool_executor) -> str:
@@ -154,15 +177,15 @@ def run_governance_query(question: str, tool_executor) -> str:
     # Agentic loop — at most 5 tool rounds to prevent runaway
     for _ in range(5):
         body = {
-            "model": "meta/llama-3.3-70b-instruct",
+            "model": "meta/llama-3.1-8b-instruct",
             "messages": messages,
             "tools": NVIDIA_GOVERNANCE_TOOLS,
             "temperature": 0.2,
-            "max_tokens": 1024
+            "max_tokens": 1024,
+            "parallel_tool_calls": False
         }
         
-        skip_nvidia = (active_provider == "groq")
-        response, provider = _post_with_retry(headers, body, timeout=15.0, skip_nvidia=skip_nvidia)
+        response, provider = _post_with_retry(headers, body, timeout=60.0, skip_nvidia=False)
         active_provider = provider
         
         res_data = response.json()
@@ -204,7 +227,7 @@ def run_governance_query(question: str, tool_executor) -> str:
     # If loop ends, get final response text
     try:
         body = {
-            "model": "meta/llama-3.3-70b-instruct",
+            "model": "meta/llama-3.1-8b-instruct",
             "messages": messages,
             "temperature": 0.2,
             "max_tokens": 1024

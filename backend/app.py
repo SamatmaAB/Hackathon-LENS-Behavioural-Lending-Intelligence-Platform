@@ -1286,7 +1286,7 @@ def ask_governance(payload: GovernanceAskPayload, user=Depends(require_user)):
                 tier   = tool_input.get("tier")
                 search = tool_input.get("search")
                 result = list_leads(tier=tier, search=search, user=user)
-                return result[:50] if isinstance(result, list) else result
+                return result[:10] if isinstance(result, list) else result
 
             if name == "get_fairness_report":
                 return governance.generate_fairness_report(DB_PATH)
@@ -1295,7 +1295,10 @@ def ask_governance(payload: GovernanceAskPayload, user=Depends(require_user)):
                 return governance.generate_roi_report(DB_PATH)
 
             if name == "get_anomaly_report":
-                return get_anomaly_report(user)
+                report = get_anomaly_report(user)
+                report["all_leads"] = report.get("all_leads", [])[:10]
+                report["flagged_leads"] = report.get("flagged_leads", [])[:10]
+                return report
 
         except Exception as e:
             return {"error": str(e)}
