@@ -196,3 +196,37 @@ def test_tier_3_for_low_scores():
     income_record = {"deviation_pct": 50}
     trust, tier, _, _ = engine.compute_trust_score(0, income_record, ["overdraft_near_miss"])
     assert tier == "Tier 3"
+
+
+def test_determine_outreach_handles_null_age_and_employment():
+    from backend import engine
+    from datetime import datetime
+    customer = {"customer_id": "X", "age": None, "employment_type": None}
+    channel, start, end = engine.determine_outreach(
+        customer, fired_keys=[], latest_txn_time=datetime(2026, 1, 1)
+    )
+    assert channel in ("App Notification", "RM Call", "Branch Visit Prompt")
+
+
+def test_determine_outreach_handles_null_age_with_property_trigger():
+    from backend import engine
+    from datetime import datetime
+    customer = {"customer_id": "X", "age": None, "employment_type": "Salaried"}
+    channel, _, _ = engine.determine_outreach(
+        customer, fired_keys=["property_related_payment"], latest_txn_time=datetime(2026, 1, 1)
+    )
+    assert channel == "RM Call"
+
+import pytest
+
+@pytest.mark.parametrize("missing_field", ["age", "employment_type", "city", "state"])
+def test_score_customer_tolerates_missing_field(missing_field):
+    from backend import engine
+    from datetime import datetime
+    sample_customer = {"customer_id": "TEST1", "age": 30, "employment_type": "Salaried", "city": "Pune", "state": "Maharashtra"}
+    sample_txns = [{"type": "SALARY_CREDIT", "amount": 50000, "counterparty": "Employer", "timestamp": datetime.now().isoformat()}]
+    incomplete = dict(sample_customer)
+    incomplete[missing_field] = None
+    # Should not raise — either scores normally or returns None/low-confidence result
+    result = engine.score_customer(incomplete, txns=sample_txns, conn=None)
+    assert result is None or isinstance(result, dict)

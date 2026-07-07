@@ -71,8 +71,10 @@ def build_training_frame(db_path=None):
         fired = set(fired_str.split(",")) if fired_str else set()
 
         record = {code: int(code in fired) for code in FEATURE_TRIGGER_CODES}
-        record["age"] = row_dict.get("age", 30)
-        record["employment_type"] = row_dict.get("employment_type", "Salaried")
+        age = row_dict.get("age")
+        record["age"] = age if age is not None else 30
+        emp = row_dict.get("employment_type")
+        record["employment_type"] = emp if emp is not None else "Salaried"
         record["true_loan_type"] = row_dict.get("true_loan_type") or "None"
         records.append(record)
 

@@ -129,7 +129,7 @@ def compute_capacity(
             recurring_non_debt_outflows += mean_amt
 
     # Clamp reconstructed income to 0
-    base_reconstructed = max(0.0, reconstructed_income)
+    base_reconstructed = max(0.0, reconstructed_income) if reconstructed_income is not None else 0.0
 
     # 2. Disposable Income
     disposable_income = base_reconstructed - existing_emi_monthly - recurring_non_debt_outflows

@@ -72,7 +72,8 @@ def predict_loan_type_ml(customer: dict, fired_keys: set) -> dict:
 
     # Build feature row
     row = {code: int(code in fired_keys) for code in FEATURE_TRIGGER_CODES}
-    row["age"] = customer.get("age", 30)
+    age = customer.get("age")
+    row["age"] = age if age is not None else 30
 
     df = pd.DataFrame([row])
 

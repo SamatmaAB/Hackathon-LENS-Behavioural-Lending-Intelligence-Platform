@@ -289,7 +289,8 @@ def reconstruct_income(customer, txns):
             method = f"Source-regularity clustering across {len(pool)} income stream(s)"
     else:
         sal = [t["amount"] for t in txns if t["type"] == "SALARY_CREDIT"]
-        synthetic = round(statistics.mean(sal), 2) if sal else customer.get("declared_income", 0)
+        decl = customer.get("declared_income")
+        synthetic = round(statistics.mean(sal), 2) if sal else (decl if decl is not None else 0.0)
         method = "Salary credit averaging"
 
     true_income = customer.get("true_monthly_income")
@@ -380,11 +381,15 @@ def determine_outreach(customer, fired_keys, latest_txn_time):
     window_start = latest_txn_time
     window_end = latest_txn_time + timedelta(hours=72)
 
-    age = customer["age"]
-    employment = customer["employment_type"]
-    if employment in ("Gig Worker", "Freelancer") or age < 32:
+    age = customer.get("age")
+    employment = customer.get("employment_type")
+
+    is_young = age is not None and age < 32
+    is_older = age is not None and age > 45
+
+    if employment in ("Gig Worker", "Freelancer") or is_young:
         channel = "App Notification"
-    elif "property_related_payment" in fired_keys or age > 45:
+    elif "property_related_payment" in fired_keys or is_older:
         channel = "RM Call"
     else:
         channel = "Branch Visit Prompt"

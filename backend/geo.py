@@ -43,12 +43,12 @@ def build_geo_distribution(conn, db):
 
     agg = {}
     for row in rows:
-        city = row["city"]
-        if city not in CITY_COORDS:
+        city = row.get("city")
+        if city is None or city not in CITY_COORDS:
             continue
         bucket = agg.setdefault(city, {
             "city": city,
-            "state": row["state"],
+            "state": row.get("state"),
             "lat": CITY_COORDS[city][0],
             "lng": CITY_COORDS[city][1],
             "lead_count": 0,

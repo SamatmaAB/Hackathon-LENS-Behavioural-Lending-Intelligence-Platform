@@ -11,3 +11,5 @@ xgboost==2.1.1
 # --- optional, local-dev only, NOT required for Vercel deploy ---
 # shap==0.46.0
 # sentence-transformers==3.1.1
+python-multipart==0.0.12  
+ 
