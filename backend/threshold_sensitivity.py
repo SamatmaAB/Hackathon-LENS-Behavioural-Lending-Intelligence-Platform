@@ -26,7 +26,11 @@ def compute_threshold_curve(conn, db, thresholds: List[int] = None) -> Dict[str,
         """,
     )
     if not rows:
-        return {"curve": [], "total_customers": 0}
+        return {
+            "curve": [],
+            "total_leads_evaluated": 0,
+            "recommended_threshold_for_30pct_target": None,
+        }
 
     curve = []
     for threshold in thresholds:
@@ -46,6 +50,6 @@ def compute_threshold_curve(conn, db, thresholds: List[int] = None) -> Dict[str,
 
     return {
         "curve": curve,
-        "total_customers": len(rows),
+        "total_leads_evaluated": len(rows),
         "recommended_threshold_for_30pct_target": first_above_30,
     }
