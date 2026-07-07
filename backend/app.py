@@ -1572,6 +1572,14 @@ def get_lead_report(customer_id: str, user=Depends(require_user)):
     lead = data["lead"]
     customer = data["customer"]
     
+    cap = lead.get('capacity')
+    if hasattr(cap, 'recommended_loan_amount'):
+        rec_loan = cap.recommended_loan_amount
+    elif isinstance(cap, dict):
+        rec_loan = cap.get('recommended_loan_amount', 0)
+    else:
+        rec_loan = 0
+    
     html = f"""
     <html>
     <head>
@@ -1617,7 +1625,7 @@ def get_lead_report(customer_id: str, user=Depends(require_user)):
             </div>
             <div class="metric">
                 <div class="metric-title">Est. Capacity</div>
-                <div class="metric-value">₹{int(lead.get('capacity', {{}}).get('recommended_loan_amount', 0)):,}</div>
+                <div class="metric-value">₹{int(rec_loan):,}</div>
             </div>
         </div>
         
